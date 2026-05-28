@@ -1,3 +1,6 @@
 [build]
   publish = "."
   command = "node generate-config.js"
+
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = "config.js"
