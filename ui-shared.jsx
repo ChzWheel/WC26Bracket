@@ -10,19 +10,10 @@ function Flag({ team, w = 22, h = 14, className = '' }) {
         style={{ width: w, height: h, background: 'var(--bg-3)' }} />
     );
   }
-  const { dir, colors } = team;
-  const stops = colors.map((c, i, a) => {
-    const start = (i / a.length) * 100;
-    const end = ((i + 1) / a.length) * 100;
-    return `${c} ${start}%, ${c} ${end}%`;
-  }).join(', ');
-  const angle = dir === 'v' ? 'to right' : 'to bottom';
   return (
-    <span className={`flag ${className}`}
-      style={{
-        width: w, height: h,
-        backgroundImage: `linear-gradient(${angle}, ${stops})`,
-      }}
+    <span
+      className={`fi fi-${team.iso} flag ${className}`}
+      style={{ width: w, height: h }}
       aria-label={team.name}
     />
   );
