@@ -3,6 +3,8 @@
 function PoolDetail({ pool, user, state, dispatch, nav }) {
   const [tab, setTab] = useState('leaderboard');
   const [copied, setCopied] = useState(false);
+  const [viewing, setViewing] = useState(null);   // { bracket, name } | null
+  const [fetchingFor, setFetchingFor] = useState(null); // userId being loaded
 
   if (!pool) {
     return (
@@ -22,6 +24,23 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
     navigator.clipboard?.writeText(pool.code).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
+  };
+
+  const openBracket = async (member) => {
+    if (member.you) {
+      const b = submittedBrackets[0];
+      if (b) setViewing({ bracket: b, name: 'Your bracket' });
+      return;
+    }
+    setFetchingFor(member.id);
+    try {
+      const raw = await window.SB.Brackets.getByUserInPool(member.id, pool.id);
+      if (raw) setViewing({ bracket: raw, name: `${member.name}'s bracket` });
+    } catch (e) {
+      alert('Could not load bracket: ' + e.message);
+    } finally {
+      setFetchingFor(null);
+    }
   };
 
   return (
@@ -104,9 +123,6 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
                         <div className="av">{m.avatar || m.name.split(' ').map(s => s[0]).join('')}</div>
                         <div>
                           <div style={{ fontWeight: 500 }}>{m.name}{m.you && <span className="tag accent" style={{ marginLeft: 8 }}>YOU</span>}</div>
-                          <div className="muted mono" style={{ fontSize: 10, letterSpacing: '0.06em' }}>
-                            {m.you && pool.owner === user.name ? 'OWNER' : (m.id === 'me' && !m.you ? '' : '')}
-                          </div>
                         </div>
                       </div>
                     </td>
@@ -137,6 +153,7 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
               ? (submittedBrackets[0]?.knockout?.final
                   ? window.WC_DATA.byCode[submittedBrackets[0].knockout.final] : null)
               : window.WC_DATA.byCode[m.championPick || ['ARG','BRA','FRA','ENG','GER','ESP','POR','NED'][sorted.indexOf(m) % 8]];
+            const loading = fetchingFor === m.id;
             return (
               <div key={m.id} className="card" style={{ padding: '14px 18px', display: 'grid',
                 gridTemplateColumns: 'auto 1fr auto auto auto', gap: 16, alignItems: 'center' }}>
@@ -161,7 +178,13 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
                   <div className="muted mono" style={{ fontSize: 10, textTransform: 'uppercase' }}>Pts</div>
                   <div className="num" style={{ fontSize: 18, fontWeight: 600 }}>{m.score || 0}</div>
                 </div>
-                <button className="btn sm">View bracket</button>
+                <button
+                  className="btn sm"
+                  disabled={loading}
+                  onClick={() => openBracket(m)}
+                >
+                  {loading ? '…' : 'View bracket'}
+                </button>
               </div>
             );
           })}
@@ -193,6 +216,142 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
           </table>
         </div>
       )}
+
+      {viewing && (
+        <BracketViewModal
+          bracket={viewing.bracket}
+          memberName={viewing.name}
+          onClose={() => setViewing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function BracketViewModal({ bracket, memberName, onClose }) {
+  const { groups = [], knockout = {} } = bracket;
+  const WC = window.WC_DATA;
+  const champion = knockout.final ? WC.byCode[knockout.final] : null;
+  const third    = knockout.third ? WC.byCode[knockout.third] : null;
+
+  const koStages = [
+    { label: 'R32', key: 'r32', count: 16 },
+    { label: 'R16', key: 'r16', count: 8  },
+    { label: 'QF',  key: 'qf',  count: 4  },
+    { label: 'SF',  key: 'sf',  count: 2  },
+  ];
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal modal-xl fade-in" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 2 }}>Bracket view</div>
+            <h3 style={{ margin: 0 }}>{memberName}</h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {champion && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--bg-2)', borderRadius: 8, padding: '6px 12px' }}>
+                <span style={{ fontSize: 16 }}>🏆</span>
+                <Flag team={champion} w={22} h={15} />
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{champion.name}</span>
+              </div>
+            )}
+            <button className="btn ghost sm" onClick={onClose} style={{ fontSize: 16, padding: '4px 10px' }}>✕</button>
+          </div>
+        </div>
+
+        {/* Group stage */}
+        <div className="mono" style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', marginBottom: 8 }}>
+          GROUP STAGE
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 24 }}>
+          {groups.map(g => (
+            <div key={g.letter} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
+              <div className="mono" style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.08em', marginBottom: 6 }}>
+                GROUP {g.letter}
+              </div>
+              {[0, 1, 2, 3].map(rank => {
+                const team = g.picks?.[rank] ? WC.byCode[g.picks[rank]] : null;
+                return (
+                  <div key={rank} style={{ display: 'flex', alignItems: 'center', gap: 5,
+                    marginBottom: 3, opacity: rank < 2 ? 1 : 0.4 }}>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--fg-3)', width: 8 }}>{rank + 1}</span>
+                    {team ? (
+                      <>
+                        <Flag team={team} w={14} h={9} />
+                        <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {team.name}
+                        </span>
+                      </>
+                    ) : <span className="muted" style={{ fontSize: 11 }}>—</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Knockout */}
+        <div className="mono" style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', marginBottom: 8 }}>
+          KNOCKOUT
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+          {koStages.map(({ label, key, count }) => (
+            <div key={key} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
+              <div className="mono" style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.06em', marginBottom: 6 }}>
+                {label}
+              </div>
+              {Array.from({ length: count }).map((_, i) => {
+                const team = knockout[key]?.[i] ? WC.byCode[knockout[key][i]] : null;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                    {team ? (
+                      <>
+                        <Flag team={team} w={14} h={9} />
+                        <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {team.name}
+                        </span>
+                      </>
+                    ) : <span className="muted" style={{ fontSize: 11 }}>—</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* Final column: champion + 3rd place */}
+          <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
+            <div className="mono" style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.06em', marginBottom: 6 }}>
+              FINAL
+            </div>
+            {champion ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ fontSize: 13 }}>🥇</span>
+                <Flag team={champion} w={16} h={11} />
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{champion.name}</span>
+              </div>
+            ) : <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>—</div>}
+            <div className="mono" style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.06em', marginBottom: 6 }}>
+              3RD PLACE
+            </div>
+            {third ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13 }}>🥉</span>
+                <Flag team={third} w={16} h={11} />
+                <span style={{ fontSize: 12 }}>{third.name}</span>
+              </div>
+            ) : <div className="muted" style={{ fontSize: 11 }}>—</div>}
+          </div>
+        </div>
+
+        <div className="actions">
+          <button className="btn ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }

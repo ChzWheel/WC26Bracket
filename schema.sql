@@ -54,6 +54,12 @@ create table if not exists public.brackets (
 );
 alter table public.brackets enable row level security;
 create policy "Users can CRUD own brackets" on public.brackets for all using (auth.uid() = user_id);
+create policy "Pool members can view submitted brackets" on public.brackets for select using (
+  submitted_to is not null and exists (
+    select 1 from public.pool_members pm
+    where pm.pool_id = brackets.submitted_to and pm.user_id = auth.uid()
+  )
+);
 
 -- ── Pools ────────────────────────────────────────────────────
 create table if not exists public.pools (
@@ -73,7 +79,7 @@ create policy "Authenticated can create"    on public.pools for insert with chec
 create table if not exists public.pool_members (
   id          uuid primary key default gen_random_uuid(),
   pool_id     uuid not null references public.pools(id) on delete cascade,
-  user_id     uuid not null references auth.users(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
   score       int not null default 0,
   joined_at   timestamptz default now(),
   unique(pool_id, user_id)

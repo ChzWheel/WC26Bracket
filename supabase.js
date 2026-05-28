@@ -88,6 +88,16 @@
       const { error } = await sb.from('brackets').delete().eq('id', id);
       if (error) throw error;
     },
+
+    async getByUserInPool(userId, poolId) {
+      const { data, error } = await sb.from('brackets')
+        .select('groups, knockout')
+        .eq('user_id', userId)
+        .eq('submitted_to', poolId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
   };
 
   // ── Pool helpers ──────────────────────────────────────────
