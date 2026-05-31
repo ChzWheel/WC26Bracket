@@ -111,9 +111,12 @@
     { key: 'final', label: 'Final',          matches: 1  },
   ];
 
+  const KNOCKOUT_LOCK_TS = new Date('2026-06-28T17:00:00.000Z').getTime();
+
   function Knockout({ bracket, dispatch, nav }) {
     const groupsDone = bracket.groups.every(g => g.picks.every(Boolean));
     const [groupStageDone, setGroupStageDone] = useState(false);
+    const isKOLocked = Date.now() >= KNOCKOUT_LOCK_TS;
 
     useEffect(() => {
       window.SB.Matches.isGroupStageDone()
@@ -167,6 +170,7 @@
     };
 
     const pickWinner = (round, matchIdx, code) => {
+      if (isKOLocked) return;
       dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
         const ko = { ...b.knockout, r32: { ...b.knockout.r32 }, r16: { ...b.knockout.r16 },
                      qf: { ...b.knockout.qf }, sf: { ...b.knockout.sf } };
@@ -269,6 +273,12 @@
 
         <Stepper steps={['Group stage', 'Knockout', 'Review & submit']} current={1} />
 
+        {isKOLocked && (
+          <div className="lock-banner">
+            Knockout picks are frozen — the Round of 32 has begun.
+          </div>
+        )}
+
         {koDone && (
           <div className="complete-banner fade-in">
             <div>
@@ -289,7 +299,7 @@
           </div>
         )}
 
-        <div className="bracket-scroll">
+        <div className="bracket-scroll" style={isKOLocked ? { pointerEvents: 'none', opacity: 0.6 } : {}}>
           <BracketTree bracket={bracket} pickWinner={pickWinner}
             thirdSources={thirdSources} pickThird={pickThird} />
         </div>

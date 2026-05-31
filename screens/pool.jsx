@@ -179,10 +179,8 @@ function PoolDetail({ pool, user, state, dispatch, nav, isAdmin }) {
             </thead>
             <tbody>
               {sorted.map((m, i) => {
-                const champPick = m.you
-                  ? (submittedBrackets[0]?.knockout?.final
-                      ? window.WC_DATA.byCode[submittedBrackets[0].knockout.final] : null)
-                  : window.WC_DATA.byCode[m.championPick || ['ARG','BRA','FRA','ENG','GER','ESP','POR','NED'][i % 8]];
+                const champCode = poolBrackets[m.id]?.final;
+                const champPick = champCode ? window.WC_DATA.byCode[champCode] : null;
                 const correct = m.correct ?? Math.max(0, Math.round((m.score || 0) / 8));
                 return (
                   <tr key={m.id} className={m.you ? 'me' : ''}>
@@ -230,10 +228,8 @@ function PoolDetail({ pool, user, state, dispatch, nav, isAdmin }) {
       {tab === 'picks' && (
         <div style={{ display: 'grid', gap: 10 }}>
           {sorted.map(m => {
-            const ch = m.you
-              ? (submittedBrackets[0]?.knockout?.final
-                  ? window.WC_DATA.byCode[submittedBrackets[0].knockout.final] : null)
-              : window.WC_DATA.byCode[m.championPick || ['ARG','BRA','FRA','ENG','GER','ESP','POR','NED'][sorted.indexOf(m) % 8]];
+            const champCode2 = poolBrackets[m.id]?.final;
+            const ch = champCode2 ? window.WC_DATA.byCode[champCode2] : null;
             const loading = fetchingFor === m.id;
             return (
               <div key={m.id} className="card" style={{ padding: '14px 18px', display: 'grid',

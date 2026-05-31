@@ -1,11 +1,16 @@
 // Group stage picker — drag teams from a 4-team pool into 1st/2nd slots.
 // HTML5 drag and drop. Tap-to-place fallback also wired for accessibility.
 
+const GROUP_LOCK_TS = new Date('2026-06-11T05:00:00.000Z').getTime();
+
 function GroupStage({ bracket, dispatch, nav }) {
   const [dragging, setDragging] = useState(null); // { code, fromGroup }
   const [over, setOver] = useState(null); // 'groupL-rk'
 
+  const isGroupLocked = Date.now() >= GROUP_LOCK_TS;
+
   const updatePick = (groupIdx, rk, code) => {
+    if (isGroupLocked) return;
     dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
       const groups = b.groups.map((g, i) => i === groupIdx ? {
         ...g,
@@ -24,6 +29,7 @@ function GroupStage({ bracket, dispatch, nav }) {
   };
 
   const clearPick = (groupIdx, rk) => {
+    if (isGroupLocked) return;
     dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => ({
       ...b,
       groups: b.groups.map((g, i) => i === groupIdx ? {
@@ -60,8 +66,8 @@ function GroupStage({ bracket, dispatch, nav }) {
         </div>
         <div className="row">
           <button className="btn ghost" onClick={() => nav({ screen: 'dashboard' })}>← Save & exit</button>
-          <button className="btn primary" disabled={!allDone} onClick={goNext}
-            style={{ opacity: allDone ? 1 : 0.5, cursor: allDone ? 'pointer' : 'not-allowed' }}>
+          <button className="btn primary" disabled={!allDone || isGroupLocked} onClick={goNext}
+            style={{ opacity: (allDone && !isGroupLocked) ? 1 : 0.5, cursor: (allDone && !isGroupLocked) ? 'pointer' : 'not-allowed' }}>
             Continue to knockout →
           </button>
         </div>
@@ -69,7 +75,13 @@ function GroupStage({ bracket, dispatch, nav }) {
 
       <Stepper steps={['Group stage', 'Knockout', 'Review & submit']} current={0} />
 
-      <div className="gs-layout">
+      {isGroupLocked && (
+        <div className="lock-banner">
+          Group stage picks are frozen — the tournament has begun.
+        </div>
+      )}
+
+      <div className="gs-layout" style={isGroupLocked ? { pointerEvents: 'none', opacity: 0.6 } : {}}>
         <aside className="gs-rail">
           <h3>Progress</h3>
           <div className="h-sub">{groupsDone} / 12 groups complete</div>

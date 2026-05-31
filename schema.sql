@@ -74,6 +74,7 @@ alter table public.pools enable row level security;
 create policy "Anyone can read pools"       on public.pools for select using (true);
 create policy "Owner can update pool"       on public.pools for update using (auth.uid() = owner_id);
 create policy "Authenticated can create"    on public.pools for insert with check (auth.uid() = owner_id);
+create policy "Owner can delete pool"       on public.pools for delete using (auth.uid() = owner_id);
 
 -- ── Pool members ─────────────────────────────────────────────
 create table if not exists public.pool_members (

@@ -1368,6 +1368,35 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
   margin-bottom: 16px;
 }
 
+/* ── Lock banner ─────────────────────────────────────────── */
+.lock-banner {
+  background: oklch(0.97 0.03 35);
+  border: 1px solid oklch(0.75 0.12 35);
+  border-radius: var(--r-md);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: oklch(0.45 0.1 35);
+  margin-bottom: 16px;
+}
+
+/* ── Help button ─────────────────────────────────────────── */
+.help-btn {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--fg-3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: grid; place-items: center;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+}
+.help-btn:hover { color: var(--fg); border-color: var(--fg-3); }
+
 /* ── Standings ────────────────────────────────────────────── */
 
 .st-groups-grid {

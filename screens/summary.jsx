@@ -1,5 +1,8 @@
 // Summary screen — review picks and submit to a pool.
 
+const GROUP_LOCK_TS_S = new Date('2026-06-11T05:00:00.000Z').getTime();
+const KNOCKOUT_LOCK_TS_S = new Date('2026-06-28T17:00:00.000Z').getTime();
+
 function Summary({ bracket, dispatch, nav, state }) {
   const [submitTo, setSubmitTo] = useState(null);
 
@@ -45,8 +48,10 @@ function Summary({ bracket, dispatch, nav, state }) {
           <div className="eyebrow">{bracket.name} · Step 3 of 3</div>
           <h1 className="page-title">Review & submit</h1>
           <div className="subtitle">
-            Lock your picks in to a pool. <strong>Brackets can be edited until the first match kicks
-            off on June 11, 2026</strong> — after that, all picks are frozen.
+            {Date.now() >= GROUP_LOCK_TS_S
+              ? <><strong>Group picks are frozen.</strong> Knockout picks lock at <strong>noon CDT, June 28, 2026</strong> when the R32 begins.</>
+              : <>Lock your picks in to a pool. <strong>Group picks freeze midnight CDT, June 11</strong> — knockout picks freeze <strong>noon CDT, June 28</strong>.</>
+            }
           </div>
         </div>
         <div className="row">
@@ -191,7 +196,9 @@ function Summary({ bracket, dispatch, nav, state }) {
 
           <div className="summary-block">
             <h3>Submission status</h3>
-            <div className="tag" style={{ marginBottom: 10, fontSize: 10 }}>EDITABLE UNTIL JUN 11, 2026</div>
+            <div className="tag" style={{ marginBottom: 10, fontSize: 10 }}>
+              {Date.now() >= GROUP_LOCK_TS_S ? 'FROZEN — TOURNAMENT UNDERWAY' : 'EDITABLE UNTIL JUN 11, 2026'}
+            </div>
             {bracket.done ? (
               <>
                 <div className="row" style={{ marginBottom: 8 }}>

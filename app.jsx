@@ -401,6 +401,7 @@ function App() {
     window.scrollTo(0, 0);
     const titles = {
       'dashboard':   'Dashboard',
+      'brackets':    'My Brackets',
       'group-stage': 'Group Stage',
       'knockout':    'Knockout',
       'summary':     'Review & Submit',
@@ -445,6 +446,9 @@ function App() {
   switch (route.screen) {
     case 'dashboard':
       screen = <Dashboard user={user} state={state} dispatch={dispatch} nav={nav} />;
+      break;
+    case 'brackets':
+      screen = <BracketList state={state} dispatch={dispatch} nav={nav} />;
       break;
     case 'group-stage':
       screen = activeBracket
@@ -505,13 +509,16 @@ function NotFound({ nav }) {
 
 // ── TopBar ────────────────────────────────────────────────
 function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
+  const [helpOpen, setHelpOpen] = useState(false);
+
   const active = (r) => route.screen === r ||
     (r === 'pools'     && route.screen === 'pool') ||
     (r === 'schedule'  && route.screen === 'schedule') ||
     (r === 'standings' && route.screen === 'standings') ||
-    (r === 'brackets'  && ['group-stage','knockout','summary'].includes(route.screen));
+    (r === 'brackets'  && ['brackets','group-stage','knockout','summary'].includes(route.screen));
 
   return (
+    <>
     <header className="topbar">
       <div className="brand">
         <span className="mark"></span>
@@ -523,11 +530,7 @@ function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
           Dashboard
         </button>
         <button className={active('brackets') ? 'active' : ''}
-          onClick={() => {
-            const last = brackets[brackets.length - 1];
-            if (last) nav({ screen: last.step >= 2 ? 'summary' : (last.step === 1 ? 'knockout' : 'group-stage'), bracketId: last.id });
-            else nav({ screen: 'dashboard' });
-          }}>
+          onClick={() => nav({ screen: 'brackets' })}>
           Brackets <span className="mono muted" style={{ fontSize: 10, marginLeft: 4 }}>{brackets.length}</span>
         </button>
         <button className={active('pools') ? 'active' : ''}
@@ -554,6 +557,7 @@ function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
         )}
       </nav>
       <div className="user-chip">
+        <button className="help-btn" onClick={() => setHelpOpen(true)} title="Bracket help">?</button>
         <span className="av">{user.avatar}</span>
         <span>{user.name}</span>
         <button className="signout" onClick={() => {
@@ -563,6 +567,49 @@ function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
         </button>
       </div>
     </header>
+    {helpOpen && (
+      <Modal title="Bracket deadlines & scoring" onClose={() => setHelpOpen(false)}>
+        <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--fg-2)' }}>
+          <p style={{ margin: '0 0 14px' }}>
+            Picks are open for editing until the matches they cover begin.
+          </p>
+          <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+            <div style={{ background: 'var(--bg-2)', borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 3 }}>
+                Group stage — <strong>midnight CDT, June 11, 2026</strong>
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                The first match kicks off June 11. Group picks lock at this moment and cannot be changed.
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg-2)', borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 3 }}>
+                Knockout stage — <strong>noon CDT, June 28, 2026</strong>
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                The Round of 32 begins June 27–28. Knockout picks (R32 through the Final) lock at noon CDT on June 28.
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+            <div style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>Scoring</div>
+            <div style={{ display: 'grid', gap: 4, fontSize: 12 }}>
+              <div className="spread"><span>Group rank (exact position)</span><span className="mono">+1 pt</span></div>
+              <div className="spread"><span>3rd-place qualifier advance</span><span className="mono">+5 pts</span></div>
+              <div className="spread"><span>Round of 32 winner</span><span className="mono">+10 pts</span></div>
+              <div className="spread"><span>Round of 16 winner</span><span className="mono">+20 pts</span></div>
+              <div className="spread"><span>Quarter-final winner</span><span className="mono">+40 pts</span></div>
+              <div className="spread"><span>Semi-final winner</span><span className="mono">+80 pts</span></div>
+              <div className="spread"><span>Champion (correct)</span><span className="mono">+160 pts</span></div>
+            </div>
+          </div>
+        </div>
+        <div className="actions">
+          <button className="btn primary" onClick={() => setHelpOpen(false)}>Got it</button>
+        </div>
+      </Modal>
+    )}
+    </>
   );
 }
 

@@ -297,7 +297,7 @@ function BracketCard({ b, onClick, onDelete }) {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {b.done ? <span className="tag accent">Locked</span> : <span className="tag">Draft</span>}
+          {b.done ? <span className="tag accent">Submitted</span> : <span className="tag">Draft</span>}
           <button className="bracket-delete-btn" title="Delete bracket"
             onClick={e => { e.stopPropagation(); onDelete(); }}>
             ×
@@ -320,4 +320,4 @@ function BracketCard({ b, onClick, onDelete }) {
   );
 }
 
-Object.assign(window, { Dashboard });
+Object.assign(window, { Dashboard, BracketCard });
