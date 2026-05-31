@@ -1,43 +1,12 @@
 // standings.jsx — Group tables + Knockout results
 
 // ── Data sources ──────────────────────────────────────────────
+// Group standings come from two sources, tried in order:
+//   1. API-Football /standings  — pre-ranked with proper FIFA tiebreakers.
+//      Parsed in supabase.js (getApiStandings) and returned as { A:[...], B:[...], ... }.
+//   2. Client-side computation  — derived from Supabase match results.
+//      Falls back automatically when the API has no data (pre-tournament).
 
-// Parses the /standings API response into our { groupLetter: [row, ...] } shape.
-// The API returns standings pre-ranked with proper FIFA tiebreakers applied.
-function parseApiStandings(apiResponse) {
-  const result = {};
-  const league = apiResponse[0]?.league;
-  if (!league?.standings) return result;
-
-  league.standings.forEach(group => {
-    // Each `group` is an array of team entries ranked 1–4
-    const firstEntry = group[0];
-    if (!firstEntry) return;
-    // group name from API: "Group A" → letter "A"
-    const m = (firstEntry.group || '').match(/Group\s+([A-L])\b/i);
-    const letter = m ? m[1].toUpperCase() : firstEntry.group;
-    const byCode = window.WC_DATA?.byCode || {};
-
-    result[letter] = group.map(entry => {
-      // Try to find our code by API team name, fall back to first 3 letters
-      const name = entry.team?.name || '';
-      const code = Object.entries(byCode).find(([, t]) => t.name === name)?.[0]
-                || name.slice(0, 3).toUpperCase();
-      return {
-        code,
-        p:   entry.all.played,
-        w:   entry.all.win,
-        d:   entry.all.draw,
-        l:   entry.all.lose,
-        gf:  entry.all.goals.for,
-        ga:  entry.all.goals.against,
-        pts: entry.points,
-      };
-    });
-  });
-
-  return result;
-}
 
 // Fallback: compute standings from raw Supabase match results.
 // Tiebreakers only go down to GF — head-to-head not implemented.
@@ -114,8 +83,7 @@ function Standings({ nav }) {
 
       // Try live FIFA standings from API (proper tiebreakers, including head-to-head)
       try {
-        const apiData = await window.SB.Matches.getApiStandings();
-        const parsed = parseApiStandings(apiData);
+        const parsed = await window.SB.Matches.getApiStandings();
         if (Object.keys(parsed).length) {
           setGroupStandings(parsed);
           setSource('api');

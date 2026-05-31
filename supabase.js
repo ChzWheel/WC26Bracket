@@ -216,22 +216,46 @@
       return data;
     },
 
-    // Fetches pre-computed FIFA standings from API-Football (proper tiebreakers).
-    // Returns the raw `response` array from the API.
+    // Fetches pre-computed FIFA standings and returns them parsed into our format:
+    // { A: [{code, p, w, d, l, gf, ga, pts}, ...], B: [...], ... }
+    // Returns {} before the tournament starts (API has no data yet).
     async getApiStandings() {
       const resp = await apiCall(`standings?league=${WC2026_LEAGUE}&season=${WC2026_SEASON}`);
       const json = await resp.json();
       if (json.errors && Object.keys(json.errors).length) {
         throw new Error(JSON.stringify(json.errors));
       }
-      return json.response || [];
+      const apiResponse = json.response || [];
+      const league = apiResponse[0]?.league;
+      if (!league?.standings) return {};
+
+      const result = {};
+      league.standings.forEach(group => {
+        if (!group.length) return;
+        const m = (group[0].group || '').match(/Group\s+([A-L])\b/i);
+        const letter = m ? m[1].toUpperCase() : null;
+        if (!letter) return;
+        result[letter] = group.map(entry => ({
+          code: mapTeamCode(entry.team?.name || ''),
+          p:    entry.all.played,
+          w:    entry.all.win,
+          d:    entry.all.draw,
+          l:    entry.all.lose,
+          gf:   entry.all.goals.for,
+          ga:   entry.all.goals.against,
+          pts:  entry.points,
+        }));
+      });
+      return result;
     },
 
-    // Syncs only currently-live fixtures from the API and upserts them to Supabase.
-    // Returns the mapped rows so callers can update state immediately.
-    // Rate limit note: each call consumes 1 API request. Poll at most once per 2 min.
+    // Syncs currently-live WC fixtures from the API and upserts to Supabase.
+    // Uses status filter so only in-progress matches are returned.
+    // Rate limit: 1 API call per invocation — poll at most every 2 minutes.
     async syncLive() {
-      const resp = await apiCall(`fixtures?live=${WC2026_LEAGUE}`);
+      const resp = await apiCall(
+        `fixtures?league=${WC2026_LEAGUE}&season=${WC2026_SEASON}&status=1H-HT-2H-ET-P-BT-LIVE`
+      );
       if (!resp.ok) return [];
       const json = await resp.json();
       const fixtures = json.response || [];
@@ -348,12 +372,13 @@
     return NAME_TO_CODE[name] || name.slice(0, 3).toUpperCase();
   }
 
-  // Extracts just the group letter from the API round string.
-  // "Group A" → "A",  "Group Stage - 1" → "" (handled by mapStage)
-  function mapGroupLabel(round) {
-    const m = round && round.match(/Group\s+([A-L])\b/i);
-    return m ? m[1].toUpperCase() : round || '';
-  }
+  // WC 2026 team → group letter, built from the official draw in data.js.
+  // Used by mapFixture() because the API round string is matchday-based
+  // ("Group Stage - 1") not group-based ("Group A").
+  const TEAM_TO_GROUP = {};
+  (window.WC_DATA?.buildSeededGroups() || []).forEach(g => {
+    g.teams.forEach(code => { TEAM_TO_GROUP[code] = g.letter; });
+  });
 
   function mapStage(round) {
     if (!round) return 'group';
@@ -384,16 +409,23 @@
   }
 
   // Maps a single API-Football fixture object to our DB schema.
+  // Group label is derived from the home team's draw assignment because the
+  // API round string is matchday-based ("Group Stage - 1"), not group-based.
   function mapFixture(f) {
+    const homeCode = mapTeamCode(f.teams.home.name);
+    const stage    = mapStage(f.league.round);
+    const groupLabel = stage === 'group'
+      ? (TEAM_TO_GROUP[homeCode] || '')
+      : f.league.round;
     return {
       api_id:      f.fixture.id,
       kickoff:     f.fixture.date,
-      home_code:   mapTeamCode(f.teams.home.name),
+      home_code:   homeCode,
       away_code:   mapTeamCode(f.teams.away.name),
       home_name:   f.teams.home.name,
       away_name:   f.teams.away.name,
-      group_label: mapGroupLabel(f.league.round),
-      stage:       mapStage(f.league.round),
+      group_label: groupLabel,
+      stage,
       venue:       f.fixture.venue?.name || '',
       status:      mapStatus(f.fixture.status.short),
       minute:      f.fixture.status.elapsed,
