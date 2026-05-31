@@ -151,6 +151,26 @@
       if (error) throw error;
       return data;
     },
+
+    async deletePool(poolId) {
+      // Unsubmit all brackets submitted to this pool first.
+      await sb.from('brackets')
+        .update({ submitted_to: null, submitted_at: null })
+        .eq('submitted_to', poolId);
+      const { error } = await sb.from('pools').delete().eq('id', poolId);
+      if (error) throw error;
+    },
+
+    async leave(poolId, userId) {
+      // Unsubmit this user's bracket from the pool.
+      await sb.from('brackets')
+        .update({ submitted_to: null, submitted_at: null })
+        .eq('submitted_to', poolId)
+        .eq('user_id', userId);
+      const { error } = await sb.from('pool_members')
+        .delete().eq('pool_id', poolId).eq('user_id', userId);
+      if (error) throw error;
+    },
   };
 
   // ── Match helpers ─────────────────────────────────────────
@@ -184,6 +204,15 @@
         .eq('status', 'ft');
       if (error) throw error;
       return data || [];
+    },
+
+    async isGroupStageDone() {
+      const { count, error } = await sb.from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('stage', 'group')
+        .eq('status', 'ft');
+      if (error) return false;
+      return (count || 0) >= 72; // 12 groups × 6 matches
     },
   };
 

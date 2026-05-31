@@ -172,6 +172,9 @@ function App() {
   const [isAdmin, setIsAdmin]   = useState(false);
   const [route, setRoute]       = useState({ screen: 'dashboard' });
   const [loading, setLoading]   = useState(true);
+  // Tracks which user ID we've already fetched data for. Using a ref so the
+  // auth listener closure always reads the current value without stale-closure issues.
+  const loadedForRef = useRef(null);
 
   useEffect(() => {
     window.history.replaceState({ screen: 'dashboard' }, '');
@@ -186,10 +189,15 @@ function App() {
     const { data: { subscription } } = window.SB.Auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setAuthUser(session.user);
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        // Only fetch data once per unique user. Supabase fires SIGNED_IN (and
+        // sometimes TOKEN_REFRESHED) on every tab-visibility change, which would
+        // otherwise reset loading and re-fetch unnecessarily.
+        if (loadedForRef.current !== session.user.id) {
+          loadedForRef.current = session.user.id;
           await loadUserData(session.user);
         }
       } else {
+        loadedForRef.current = null; // reset so next sign-in loads fresh data
         setAuthUser(null);
         setProfile(null);
         setBrackets([]);
@@ -248,6 +256,7 @@ function App() {
       name:    row.name,
       code:    row.code,
       owner:   row.owner_id === myUserId ? (prof?.name || 'You') : 'Other',
+      isOwner: row.owner_id === myUserId,
       members,
     };
   }
@@ -308,6 +317,22 @@ function App() {
       const full = await window.SB.Pools.getWithMembers(poolId);
       setPools(prev => prev.map(p => p.id === poolId ? normalizePool(full, authUser.id, profile) : p));
     },
+
+    async deletePool(poolId) {
+      await window.SB.Pools.deletePool(poolId);
+      setPools(prev => prev.filter(p => p.id !== poolId));
+      setBrackets(prev => prev.map(b =>
+        b.submittedTo === poolId ? { ...b, submittedTo: null, submittedAt: null } : b
+      ));
+    },
+
+    async leave(poolId) {
+      await window.SB.Pools.leave(poolId, authUser.id);
+      setPools(prev => prev.filter(p => p.id !== poolId));
+      setBrackets(prev => prev.map(b =>
+        b.submittedTo === poolId ? { ...b, submittedTo: null, submittedAt: null } : b
+      ));
+    },
   };
 
   // ── dispatch shim ─────────────────────────────────────
@@ -345,6 +370,16 @@ function App() {
         }
         case 'POOL_SUBMIT': {
           await poolOps.refresh(action.poolId);
+          break;
+        }
+        case 'DELETE_POOL': {
+          await poolOps.deletePool(action.poolId);
+          nav({ screen: 'dashboard' });
+          break;
+        }
+        case 'LEAVE_POOL': {
+          await poolOps.leave(action.poolId);
+          nav({ screen: 'dashboard' });
           break;
         }
         case 'SIGN_OUT': {
@@ -427,7 +462,7 @@ function App() {
       break;
     case 'pool':
       screen = activePool
-        ? <PoolDetail pool={activePool} user={user} state={state} dispatch={dispatch} nav={nav} />
+        ? <PoolDetail pool={activePool} user={user} state={state} dispatch={dispatch} nav={nav} isAdmin={isAdmin} />
         : <NotFound nav={nav} />;
       break;
     case 'schedule':

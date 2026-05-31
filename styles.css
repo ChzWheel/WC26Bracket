@@ -183,6 +183,8 @@ h1.page-title {
 }
 .btn.ghost { border-color: transparent; }
 .btn.ghost:hover { background: var(--bg-2); }
+.btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn.danger:hover { background: color-mix(in oklch, var(--danger), #000 10%); }
 .btn.sm { padding: 6px 10px; font-size: 12px; }
 .btn .kbd {
   font-family: var(--font-mono); font-size: 10px;
@@ -279,6 +281,21 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
 .section-head h2 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.015em; }
 
 .bracket-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.bracket-delete-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fg-3);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.bracket-card:hover .bracket-delete-btn { opacity: 1; }
+.bracket-delete-btn:hover { color: var(--danger); }
 .bracket-card {
   position: relative;
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-lg);
@@ -1055,45 +1072,10 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
 .sparkle-layer  { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .sparkle        { fill: var(--fg); opacity: 0; transform-box: fill-box; transform-origin: center; }
 
-/* ── Third-place source picker (R32 slots) ────────────────── */
-.third-src-row {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 5px 10px;
-  cursor: default;
-  min-height: 0;
-}
-.third-src-lbl {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--fg-3);
-}
-.third-src-opts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-.third-src-opt {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--bg-2);
-  cursor: pointer;
-  font-size: 10px;
-  font-family: inherit;
-  color: var(--fg);
-  transition: background 0.1s, border-color 0.1s;
-}
-.third-src-opt:hover:not(:disabled) {
-  background: var(--bg-3);
-  border-color: var(--fg-3);
-}
-.third-src-opt:disabled { opacity: 0.4; cursor: default; }
+/* ── Third-place qualifier slots ──────────────────────────── */
+.third-pick-row { cursor: pointer; }
+.third-pick-row:hover { background: var(--bg-3); }
+
 .third-src-tag {
   margin-left: auto;
   font-size: 9px;
@@ -1107,7 +1089,51 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
   cursor: pointer;
   flex-shrink: 0;
 }
-.third-src-tag:hover { color: var(--danger); border-color: var(--danger); }
+.third-src-tag:hover { color: var(--accent-ink); border-color: var(--accent); }
+
+/* ── Third-place source modal options ─────────────────────── */
+.third-modal-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  transition: background 0.1s, border-color 0.1s;
+}
+.third-modal-opt:hover:not(:disabled) { background: var(--bg-3); border-color: var(--line-2); }
+.third-modal-opt.selected { border-color: var(--accent); background: oklch(0.97 0.02 145); }
+.third-modal-opt:disabled { opacity: 0.4; cursor: default; }
+.third-modal-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.third-modal-team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── Group-stage-done banner ──────────────────────────────── */
+.third-edit-banner {
+  background: oklch(0.97 0.02 145);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--accent-ink);
+  margin-bottom: 16px;
+}
 
 /* ── Scrollbar tuning ─────────────────────────────────────── */
 .bracket-scroll::-webkit-scrollbar, .gs-rail::-webkit-scrollbar { height: 10px; width: 10px; }

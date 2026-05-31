@@ -25,7 +25,7 @@ function calcRemaining(knockout, knockedOut, sfLosers) {
   return pts;
 }
 
-function PoolDetail({ pool, user, state, dispatch, nav }) {
+function PoolDetail({ pool, user, state, dispatch, nav, isAdmin }) {
   const [tab, setTab] = useState('leaderboard');
   const [copied, setCopied] = useState(false);
   const [viewing, setViewing] = useState(null);
@@ -33,6 +33,7 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
   const [poolBrackets, setPoolBrackets] = useState({});  // { userId: knockout }
   const [knockedOut, setKnockedOut] = useState(new Set());
   const [sfLosers, setSfLosers] = useState(new Set());
+  const [confirm, setConfirm] = useState(null); // 'delete' | 'leave' | null
 
   useEffect(() => {
     if (!pool?.id) return;
@@ -70,6 +71,7 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
   const myRank = myEntry ? sorted.indexOf(myEntry) + 1 : null;
   const leader = sorted[0];
   const submittedBrackets = state.brackets.filter(b => b.submittedTo === pool.id);
+  const canDelete = pool.isOwner || isAdmin;
 
   const getMaxPts = (member) => {
     const ko = member.you ? submittedBrackets[0]?.knockout : poolBrackets[member.id];
@@ -117,6 +119,10 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
             <span className="mono" style={{ letterSpacing: '0.2em' }}>{pool.code}</span>
             <span className="kbd">{copied ? 'COPIED' : 'COPY'}</span>
           </button>
+          {canDelete
+            ? <button className="btn danger" onClick={() => setConfirm('delete')}>Delete pool</button>
+            : <button className="btn ghost" onClick={() => setConfirm('leave')}>Leave pool</button>
+          }
           <button className="btn primary" onClick={() => nav({ screen: 'dashboard' })}>
             ← Dashboard
           </button>
@@ -294,6 +300,48 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
           memberName={viewing.name}
           onClose={() => setViewing(null)}
         />
+      )}
+
+      {confirm === 'delete' && (
+        <div className="modal-bg" onClick={() => setConfirm(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Delete "{pool.name}"?</h3>
+            <p>
+              This permanently removes the pool and unsubmits all {pool.members.length} members'
+              brackets. This cannot be undone.
+            </p>
+            <div className="actions">
+              <button className="btn ghost" onClick={() => setConfirm(null)}>Cancel</button>
+              <button className="btn danger" onClick={() => {
+                setConfirm(null);
+                dispatch({ type: 'DELETE_POOL', poolId: pool.id });
+              }}>
+                Delete pool
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirm === 'leave' && (
+        <div className="modal-bg" onClick={() => setConfirm(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Leave "{pool.name}"?</h3>
+            <p>
+              You'll be removed from the pool and your submitted bracket will be unsubmitted.
+              You can rejoin later with the pool code.
+            </p>
+            <div className="actions">
+              <button className="btn ghost" onClick={() => setConfirm(null)}>Cancel</button>
+              <button className="btn danger" onClick={() => {
+                setConfirm(null);
+                dispatch({ type: 'LEAVE_POOL', poolId: pool.id });
+              }}>
+                Leave pool
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

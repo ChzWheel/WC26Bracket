@@ -2,12 +2,13 @@
 // Key change: dispatch is async, so createBracket/createPool await it.
 
 function Dashboard({ user, state, dispatch, nav }) {
-  const [modal, setModal]         = useState(null);
-  const [bracketName, setBracketName] = useState('');
-  const [poolName, setPoolName]   = useState('');
-  const [poolCode, setPoolCode]   = useState('');
-  const [busy, setBusy]           = useState(false);
-  const [err, setErr]             = useState('');
+  const [modal, setModal]               = useState(null);
+  const [bracketName, setBracketName]   = useState('');
+  const [poolName, setPoolName]         = useState('');
+  const [poolCode, setPoolCode]         = useState('');
+  const [busy, setBusy]                 = useState(false);
+  const [err, setErr]                   = useState('');
+  const [deletingBracket, setDeletingBracket] = useState(null);
 
   const myBrackets = state.brackets || [];
   const myPools    = state.pools    || [];
@@ -111,9 +112,10 @@ function Dashboard({ user, state, dispatch, nav }) {
       </div>
       <div className="bracket-grid">
         {myBrackets.map(b => (
-          <BracketCard key={b.id} b={b} onClick={() =>
-            nav({ screen: b.step >= 2 ? 'summary' : (b.step === 1 ? 'knockout' : 'group-stage'), bracketId: b.id })
-          } />
+          <BracketCard key={b.id} b={b}
+            onClick={() => nav({ screen: b.step >= 2 ? 'summary' : (b.step === 1 ? 'knockout' : 'group-stage'), bracketId: b.id })}
+            onDelete={() => setDeletingBracket(b)}
+          />
         ))}
         <button className="bracket-card new" onClick={() => setModal('new-bracket')}>
           <div style={{ textAlign: 'center' }}>
@@ -235,6 +237,29 @@ function Dashboard({ user, state, dispatch, nav }) {
           </div>
         </Modal>
       )}
+
+      {deletingBracket && (
+        <div className="modal-bg" onClick={() => setDeletingBracket(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Delete "{deletingBracket.name}"?</h3>
+            <p>
+              {deletingBracket.submittedTo
+                ? 'This bracket is submitted to a pool. Deleting it will remove it from the pool leaderboard.'
+                : 'This bracket will be permanently deleted.'}
+              {' '}This cannot be undone.
+            </p>
+            <div className="actions">
+              <button className="btn ghost" onClick={() => setDeletingBracket(null)}>Cancel</button>
+              <button className="btn danger" onClick={() => {
+                dispatch({ type: 'DELETE_BRACKET', id: deletingBracket.id });
+                setDeletingBracket(null);
+              }}>
+                Delete bracket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -249,7 +274,7 @@ function Kpi({ k, v, d }) {
   );
 }
 
-function BracketCard({ b, onClick }) {
+function BracketCard({ b, onClick, onDelete }) {
   const groupsDone  = b.groups.filter(g => g.picks.every(Boolean)).length;
   const groupPicks  = b.groups.reduce((s, g) => s + g.picks.filter(Boolean).length, 0);
   const koPicks     =
@@ -271,7 +296,13 @@ function BracketCard({ b, onClick }) {
             {b.done ? 'Submitted' : `${pct}% complete`} · {fmtDate(b.createdAt)}
           </div>
         </div>
-        {b.done ? <span className="tag accent">Locked</span> : <span className="tag">Draft</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {b.done ? <span className="tag accent">Locked</span> : <span className="tag">Draft</span>}
+          <button className="bracket-delete-btn" title="Delete bracket"
+            onClick={e => { e.stopPropagation(); onDelete(); }}>
+            ×
+          </button>
+        </div>
       </div>
       <div className="progress"><i style={{ width: `${pct}%` }} /></div>
       <div className="footer">
