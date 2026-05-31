@@ -232,10 +232,12 @@ function CalMonth({ year, month, byDate }) {
 
 // ── Shared helpers ────────────────────────────────────────────
 
+const CDT = 'America/Chicago';
+
 function dbToMatch(m) {
   const kickoffDate = m.kickoff ? new Date(m.kickoff) : null;
   const kickoffTime = kickoffDate
-    ? kickoffDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    ? kickoffDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: CDT })
     : '';
   return {
     id:         m.id,
@@ -256,7 +258,7 @@ function dbToCalMatch(m) {
   const kickoffDate = m.kickoff ? new Date(m.kickoff) : null;
   return {
     ...dbToMatch(m),
-    date: kickoffDate ? kickoffDate.toISOString().slice(0, 10) : '',
+    date: kickoffDate ? kickoffDate.toLocaleDateString('en-CA', { timeZone: CDT }) : '',
   };
 }
 
@@ -344,7 +346,7 @@ function MatchRow({ m, variant, tick = 0 }) {
             <div className="mr-preview">
               <div className="mr-preview-row">
                 <span className="lbl">Kickoff</span>
-                <span className="val mono">{m.kickoff} local</span>
+                <span className="val mono">{m.kickoff} CT</span>
               </div>
               <div className="mr-preview-row">
                 <span className="lbl">Venue</span>

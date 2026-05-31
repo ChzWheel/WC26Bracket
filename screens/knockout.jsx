@@ -35,7 +35,7 @@
   const THIRD_SLOT_INFO = Array.from({ length: 8 }, (_, slotIdx) => {
     const matchIdx = R32_SEED.findIndex(pair => pair.some(s => s.kind === 'third' && s.slotIdx === slotIdx));
     const src = R32_SEED[matchIdx].find(s => s.kind === 'third');
-    return { matchIdx, eligible: src.eligible, mNum: FIFA_MATCH_NUMS.r32[matchIdx] };
+    return { slotIdx, matchIdx, eligible: src.eligible, mNum: FIFA_MATCH_NUMS.r32[matchIdx] };
   });
 
   // Given the user's 8 picked qualifier team codes, assign each qualifying group
