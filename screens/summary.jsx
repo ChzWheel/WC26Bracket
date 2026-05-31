@@ -104,6 +104,29 @@ function Summary({ bracket, dispatch, nav, state }) {
             </div>
           </div>
 
+          {(bracket.knockout.thirdQualifiers?.length > 0) && (
+            <div className="card padded" style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 14px', fontSize: 13 }}>3rd-place qualifiers</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {bracket.knockout.thirdQualifiers.map(code => {
+                  const t = window.WC_DATA.byCode[code];
+                  if (!t) return null;
+                  const g = bracket.groups.find(gr => gr.picks[2] === code);
+                  return (
+                    <div key={code} style={{ display: 'flex', alignItems: 'center', gap: 8,
+                      border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
+                      <Flag team={t} w={20} h={14} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 500 }}>{t.name}</div>
+                        {g && <div className="mono muted" style={{ fontSize: 10 }}>3rd · Group {g.letter}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="card padded">
             <h3 style={{ margin: '0 0 14px', fontSize: 13 }}>Knockout picks</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
