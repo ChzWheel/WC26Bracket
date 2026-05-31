@@ -13,6 +13,10 @@ const KO_STAGES = [
 function calcRemaining(knockout, knockedOut, sfLosers) {
   if (!knockout) return null;
   let pts = 0;
+  // 5 pts per 3rd-place qualifier pick that hasn't been knocked out yet
+  for (const code of knockout.thirdQualifiers || []) {
+    if (!knockedOut.has(code)) pts += 5;
+  }
   for (const { key, reward, count } of KO_STAGES) {
     const picks = knockout[key] || {};
     for (let i = 0; i < count; i++) {
@@ -277,6 +281,7 @@ function PoolDetail({ pool, user, state, dispatch, nav, isAdmin }) {
             <tbody>
               {[
                 ['Group rank (exact position)', 1,  48],
+                ['3rd-place qualifier (×8)',    5,  40],
                 ['Round of 32', 10, 160],
                 ['Round of 16', 20, 160],
                 ['Quarter-final', 40, 160],
@@ -288,7 +293,7 @@ function PoolDetail({ pool, user, state, dispatch, nav, isAdmin }) {
               ))}
             </tbody>
             <tfoot>
-              <tr style={{ fontWeight: 600 }}><td>Maximum</td><td></td><td className="pts" style={{ fontWeight: 700 }}>888</td></tr>
+              <tr style={{ fontWeight: 600 }}><td>Maximum</td><td></td><td className="pts" style={{ fontWeight: 700 }}>928</td></tr>
             </tfoot>
           </table>
         </div>

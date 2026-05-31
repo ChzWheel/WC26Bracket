@@ -68,7 +68,7 @@
         user_id: userId,
         name,
         groups,
-        knockout: { r32: {}, r16: {}, qf: {}, sf: {}, thirdSrc: Array(8).fill(null), third: null, final: null },
+        knockout: { r32: {}, r16: {}, qf: {}, sf: {}, thirdQualifiers: [], third: null, final: null },
         step: 0,
         done: false,
       }).select().single();

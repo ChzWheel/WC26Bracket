@@ -1046,6 +1046,75 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
   .cal-day-num { font-size: 10px; }
 }
 
+/* ── 3rd-place qualifier picker ───────────────────────────── */
+.qualifier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+@media (max-width: 700px) {
+  .qualifier-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.qualifier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.qualifier-card:hover:not(.disabled) {
+  border-color: var(--line-2);
+  background: var(--bg-3);
+}
+.qualifier-card.selected {
+  border-color: var(--accent);
+  background: oklch(0.97 0.02 145);
+}
+.qualifier-card.disabled { opacity: 0.4; cursor: not-allowed; }
+.qualifier-group-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+.qualifier-team-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.25;
+}
+.qualifier-tbd {
+  font-size: 10px;
+  color: var(--fg-3);
+  font-style: italic;
+}
+.qualifier-check {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+.qualifier-counter {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+  min-width: 56px;
+  text-align: right;
+}
+.qualifier-counter.done { color: var(--accent-ink); }
+
 /* ── Globe loader ─────────────────────────────────────────── */
 .globe-loader {
   position: relative;
@@ -1071,6 +1140,75 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
 .ball-pentagon  { fill: var(--fg); stroke: var(--fg); stroke-width: 0.6; stroke-linejoin: round; }
 .sparkle-layer  { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .sparkle        { fill: var(--fg); opacity: 0; transform-box: fill-box; transform-origin: center; }
+
+/* ── 3rd-place qualifier picker ───────────────────────────── */
+.qualifier-counter {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.qualifier-count {
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.qualifier-of { font-size: 16px; color: var(--fg-2); }
+.qualifier-done { font-size: 13px; color: var(--accent); font-weight: 600; margin-left: 8px; }
+
+.qualifier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 32px;
+}
+@media (max-width: 700px) {
+  .qualifier-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.qualifier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.qualifier-card:hover:not(.disabled) {
+  border-color: var(--line-2);
+  background: var(--bg-3);
+}
+.qualifier-card.selected {
+  border-color: var(--accent);
+  background: oklch(0.97 0.02 145);
+}
+.qualifier-card.disabled { opacity: 0.4; cursor: default; }
+.qualifier-group {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+.qualifier-name { font-size: 12px; font-weight: 500; line-height: 1.2; }
+.qualifier-code { font-size: 10px; color: var(--fg-3); }
+.qualifier-flag-placeholder { width: 32px; height: 22px; background: var(--line); border-radius: 2px; }
+.qualifier-check {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
 
 /* ── Third-place qualifier slots ──────────────────────────── */
 .third-pick-row { cursor: pointer; }

@@ -1,5 +1,7 @@
 // Knockout bracket — official FIFA WC 2026 format.
 // R32 seeding and bracket path verified against FIFA official schedule (Wikipedia).
+// Third-place qualifiers: user picks 8 of 12; system assigns them to slots via
+// constrained greedy matching (most-restricted slot first).
 
 (function () {
   const R32_SEED = [
@@ -30,15 +32,48 @@
     third: [103],
   };
 
-  // Precompute: slotIdx → { matchIdx, eligible, mNum } for quick modal lookups.
   const THIRD_SLOT_INFO = Array.from({ length: 8 }, (_, slotIdx) => {
     const matchIdx = R32_SEED.findIndex(pair => pair.some(s => s.kind === 'third' && s.slotIdx === slotIdx));
     const src = R32_SEED[matchIdx].find(s => s.kind === 'third');
     return { matchIdx, eligible: src.eligible, mNum: FIFA_MATCH_NUMS.r32[matchIdx] };
   });
 
+  // Given the user's 8 picked qualifier team codes, assign each qualifying group
+  // to exactly one R32 third-place slot using most-constrained-first greedy matching.
+  function assignQualifiersToSlots(bracket) {
+    const qualifiers = bracket.knockout.thirdQualifiers || [];
+
+    // Map team code → group letter for quick lookup
+    const teamToGroup = {};
+    for (const g of bracket.groups) {
+      if (g.picks[2]) teamToGroup[g.picks[2]] = g.letter;
+    }
+
+    const qualifyingGroups = new Set(qualifiers.map(code => teamToGroup[code]).filter(Boolean));
+
+    // Sort slots by how many of their eligible groups are qualifying (ascending = most constrained first)
+    const slots = THIRD_SLOT_INFO.map(({ slotIdx, eligible }) => ({
+      slotIdx,
+      candidates: eligible.filter(l => qualifyingGroups.has(l)),
+    })).sort((a, b) => a.candidates.length - b.candidates.length);
+
+    const assignment = {}; // slotIdx → groupLetter
+    const used = new Set();
+    for (const { slotIdx, candidates } of slots) {
+      for (const letter of candidates) {
+        if (!used.has(letter)) {
+          assignment[slotIdx] = letter;
+          used.add(letter);
+          break;
+        }
+      }
+    }
+    return assignment;
+  }
+
   function getThirdCode(bracket, slotIdx) {
-    const letter = bracket.knockout.thirdSrc?.[slotIdx];
+    const assignment = assignQualifiersToSlots(bracket);
+    const letter = assignment[slotIdx];
     if (!letter) return null;
     const g = bracket.groups.find(x => x.letter === letter);
     return g?.picks[2] || null;
@@ -78,8 +113,7 @@
 
   function Knockout({ bracket, dispatch, nav }) {
     const groupsDone = bracket.groups.every(g => g.picks.every(Boolean));
-    const [thirdPickingSlot, setThirdPickingSlot] = useState(null);
-    const [groupStageDone, setGroupStageDone]     = useState(false);
+    const [groupStageDone, setGroupStageDone] = useState(false);
 
     useEffect(() => {
       window.SB.Matches.isGroupStageDone()
@@ -87,8 +121,50 @@
         .catch(() => {});
     }, []);
 
-    const openThirdPicker = (slotIdx) => setThirdPickingSlot(slotIdx);
-    const closeThirdPicker = () => setThirdPickingSlot(null);
+    const qualifiers = bracket.knockout.thirdQualifiers || [];
+    const qualifiersDone = qualifiers.length === 8;
+
+    // Toggle a team code in/out of the 8 qualifier picks.
+    const pickQualifier = (teamCode) => {
+      dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
+        const current = b.knockout.thirdQualifiers || [];
+        let next;
+        if (current.includes(teamCode)) {
+          next = current.filter(c => c !== teamCode);
+        } else {
+          if (current.length >= 8) return b;
+          next = [...current, teamCode];
+        }
+
+        const ko = {
+          ...b.knockout,
+          thirdQualifiers: next,
+          r32: { ...b.knockout.r32 },
+          r16: { ...b.knockout.r16 },
+          qf:  { ...b.knockout.qf  },
+          sf:  { ...b.knockout.sf  },
+          final: null,
+          third: null,
+        };
+
+        // Clear R32 winners for all third-place slots since the assignment may have changed.
+        for (let mi = 0; mi < 16; mi++) {
+          if (R32_SEED[mi].some(s => s.kind === 'third')) ko.r32[mi] = null;
+        }
+
+        // Cascade clear r16/qf/sf picks that are no longer sourced from their match.
+        const tmp = { ...b, knockout: ko };
+        ['r16', 'qf', 'sf'].forEach(rd => {
+          const n = ROUNDS.find(r => r.key === rd).matches;
+          for (let i = 0; i < n; i++) {
+            const srcs = matchSources(tmp, rd, i);
+            if (ko[rd]?.[i] && !srcs.includes(ko[rd][i])) ko[rd][i] = null;
+          }
+        });
+
+        return { ...b, knockout: ko, step: Math.max(b.step, 1) };
+      }});
+    };
 
     const pickWinner = (round, matchIdx, code) => {
       dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
@@ -112,29 +188,6 @@
         });
 
         return { ...b, knockout: ko, step: Math.max(b.step, 1) };
-      }});
-    };
-
-    const pickThirdSrc = (slotIdx, groupLetterOrNull) => {
-      dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
-        const ko = { ...b.knockout, r32: { ...b.knockout.r32 }, r16: { ...b.knockout.r16 },
-                     qf: { ...b.knockout.qf }, sf: { ...b.knockout.sf },
-                     thirdSrc: [...(b.knockout.thirdSrc || Array(8).fill(null))] };
-        ko.thirdSrc[slotIdx] = groupLetterOrNull;
-
-        const matchIdx = THIRD_SLOT_INFO[slotIdx].matchIdx;
-        ko.r32[matchIdx] = null;
-        ['r16', 'qf', 'sf'].forEach(rd => {
-          const n = ROUNDS.find(r => r.key === rd).matches;
-          for (let i = 0; i < n; i++) {
-            const srcs = matchSources({ ...b, knockout: ko }, rd, i);
-            if (ko[rd]?.[i] && !srcs.includes(ko[rd][i])) ko[rd][i] = null;
-          }
-        });
-        ko.final = null;
-        ko.third = null;
-
-        return { ...b, knockout: ko };
       }});
     };
 
@@ -169,6 +222,18 @@
       );
     }
 
+    // Gate: pick 8 qualifiers before showing the bracket.
+    if (!qualifiersDone) {
+      return (
+        <ThirdQualifierPicker
+          bracket={bracket}
+          groupStageDone={groupStageDone}
+          onPick={pickQualifier}
+          nav={nav}
+        />
+      );
+    }
+
     const koDone =
       Object.values(bracket.knockout.r32 || {}).filter(Boolean).length === 16 &&
       Object.values(bracket.knockout.r16 || {}).filter(Boolean).length === 8 &&
@@ -183,13 +248,15 @@
             <div className="eyebrow">{bracket.name} · Step 2 of 3</div>
             <h1 className="page-title">Knockout bracket</h1>
             <div className="subtitle">
-              Click a team in each match to pick the winner. For 3rd-place qualifier slots,
-              tap the slot to choose which eligible group's 3rd-place team advances.
+              Click a team in each match to pick the winner.
             </div>
           </div>
           <div className="row">
             <button className="btn ghost" onClick={() => nav({ screen: 'group-stage', bracketId: bracket.id })}>
               ← Groups
+            </button>
+            <button className="btn ghost" onClick={() => dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => ({ ...b, knockout: { ...b.knockout, thirdQualifiers: [] } }) })}>
+              Edit qualifiers
             </button>
             <button className="btn primary" disabled={!koDone} onClick={() => {
               dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => ({ ...b, step: 2 }) });
@@ -201,13 +268,6 @@
         </div>
 
         <Stepper steps={['Group stage', 'Knockout', 'Review & submit']} current={1} />
-
-        {groupStageDone && (
-          <div className="third-edit-banner">
-            Group stage is complete — you can update your 3rd-place qualifier picks below.
-            Group picks are locked.
-          </div>
-        )}
 
         {koDone && (
           <div className="complete-banner fade-in">
@@ -230,30 +290,98 @@
         )}
 
         <div className="bracket-scroll">
-          <BracketTree bracket={bracket} pickWinner={pickWinner} pickThirdSrc={pickThirdSrc}
-            openThirdPicker={openThirdPicker} groupStageDone={groupStageDone}
+          <BracketTree bracket={bracket} pickWinner={pickWinner}
             thirdSources={thirdSources} pickThird={pickThird} />
         </div>
-
-        {thirdPickingSlot !== null && (
-          <ThirdSrcModal
-            slotIdx={thirdPickingSlot}
-            bracket={bracket}
-            onPick={(slotIdx, letter) => { pickThirdSrc(slotIdx, letter); closeThirdPicker(); }}
-            onClose={closeThirdPicker}
-          />
-        )}
       </div>
     );
   }
 
-  function BracketTree({ bracket, pickWinner, pickThirdSrc, openThirdPicker, groupStageDone, thirdSources, pickThird }) {
+  function ThirdQualifierPicker({ bracket, groupStageDone, onPick, nav }) {
+    const qualifiers = bracket.knockout.thirdQualifiers || [];
+    const count = qualifiers.length;
+
+    return (
+      <div className="main fade-in">
+        <div className="page-head">
+          <div>
+            <div className="eyebrow">{bracket.name} · Step 2 of 3</div>
+            <h1 className="page-title">3rd-place qualifiers</h1>
+            <div className="subtitle">
+              The best 8 of 12 third-place teams advance to the Round of 32.
+              Pick which 8 you think will make it.
+            </div>
+          </div>
+          <button className="btn ghost" onClick={() => nav({ screen: 'group-stage', bracketId: bracket.id })}>
+            ← Groups
+          </button>
+        </div>
+
+        <Stepper steps={['Group stage', 'Knockout', 'Review & submit']} current={1} />
+
+        {groupStageDone && (
+          <div className="third-edit-banner">
+            The group stage is complete — update your qualifier picks based on the actual results.
+          </div>
+        )}
+
+        <div className="card padded" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Select 8 teams</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                Each team earns you 5 points if they actually advance
+              </div>
+            </div>
+            <div className={`qualifier-counter ${count === 8 ? 'done' : ''}`}>
+              {count} <span style={{ opacity: 0.5 }}>/ 8</span>
+            </div>
+          </div>
+
+          <div className="qualifier-grid">
+            {bracket.groups.map(g => {
+              const teamCode = g.picks[2];
+              const team = teamCode ? window.WC_DATA.byCode[teamCode] : null;
+              const selected = qualifiers.includes(teamCode);
+              const disabled = !teamCode || (!selected && count >= 8);
+              return (
+                <button key={g.letter}
+                  className={`qualifier-card ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
+                  disabled={disabled}
+                  onClick={() => teamCode && onPick(teamCode)}>
+                  <div className="qualifier-group-label">Group {g.letter}</div>
+                  {team ? (
+                    <>
+                      <Flag team={team} w={32} h={22} />
+                      <div className="qualifier-team-name">{team.name}</div>
+                    </>
+                  ) : (
+                    <div className="qualifier-tbd">3rd not picked</div>
+                  )}
+                  {selected && <div className="qualifier-check">✓</div>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn primary" disabled={count !== 8}
+            style={{ opacity: count === 8 ? 1 : 0.4, cursor: count === 8 ? 'pointer' : 'not-allowed' }}
+            onClick={() => {}}>
+            Continue to bracket →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function BracketTree({ bracket, pickWinner, thirdSources, pickThird }) {
     return (
       <div className="bracket-tree" style={{ gridTemplateRows: 'repeat(16, 92px)' }}>
         {ROUNDS.map((rd, rdi) => {
           const span = Math.pow(2, rdi);
           return Array.from({ length: rd.matches }).map((_, mi) => {
-            const rawSlots = rd.key === 'r32' ? R32_SEED[mi] : null;
             const sources = matchSources(bracket, rd.key, mi);
             const teams = sources.map(c => c ? window.WC_DATA.byCode[c] : null);
             const winnerCode = rd.key === 'final'
@@ -265,13 +393,8 @@
                 key={`${rd.key}-${mi}`}
                 rd={rd} idx={mi}
                 teams={teams}
-                rawSlots={rawSlots}
-                bracket={bracket}
                 winnerCode={winnerCode}
                 onPick={(code) => pickWinner(rd.key, mi, code)}
-                onPickThirdSrc={pickThirdSrc}
-                openThirdPicker={openThirdPicker}
-                groupStageDone={groupStageDone}
                 style={{ gridColumn: rdi + 1, gridRow: `${rowStart} / span ${span}` }}
               />
             );
@@ -299,10 +422,9 @@
     );
   }
 
-  function MatchBox({ rd, idx, teams, rawSlots, bracket, winnerCode, onPick, onPickThirdSrc, openThirdPicker, groupStageDone, style }) {
+  function MatchBox({ rd, idx, teams, winnerCode, onPick, style }) {
     const isFinal = rd.key === 'final';
     const mNum = FIFA_MATCH_NUMS[rd.key]?.[idx] ?? '?';
-
     return (
       <div className={`match ${rd.key} ${isFinal ? 'final' : ''} ${winnerCode ? 'set' : ''}`} style={style}>
         <div className="mh">
@@ -310,93 +432,17 @@
           {winnerCode && <span style={{ color: 'var(--accent)' }}>● set</span>}
         </div>
         {teams.map((t, i) => {
-          const rawSlot = rawSlots?.[i];
-          const isThirdSlot = rawSlot?.kind === 'third';
-          const srcPicked = isThirdSlot ? (bracket.knockout.thirdSrc?.[rawSlot.slotIdx] || null) : null;
-
-          // Unset third-place slot: single clickable row that opens the modal.
-          if (isThirdSlot && !srcPicked) {
-            return (
-              <div key={i} className="slot-row tbd third-pick-row"
-                onClick={() => openThirdPicker(rawSlot.slotIdx)}>
-                <span className="nm">3rd qualifier</span>
-                <span className="code" style={{ color: 'var(--accent)' }}>pick ▾</span>
-              </div>
-            );
-          }
-
           const code = t?.code;
           const picked = code && code === winnerCode;
-          const tbd = !t;
-
-          // When group stage is done, badge opens modal directly for re-pick.
-          // Otherwise badge resets the selection.
-          const badgeClick = groupStageDone
-            ? (e) => { e.stopPropagation(); openThirdPicker(rawSlot.slotIdx); }
-            : (e) => { e.stopPropagation(); onPickThirdSrc(rawSlot.slotIdx, null); };
-          const badgeLabel = groupStageDone ? `3${srcPicked} ✎` : `3${srcPicked} ×`;
-          const badgeTitle = groupStageDone
-            ? `3rd from Group ${srcPicked} — click to change`
-            : `3rd from Group ${srcPicked} — click to reset`;
-
           return (
-            <div key={i} className={`slot-row ${tbd ? 'tbd' : ''} ${picked ? 'picked' : ''}`}
-              onClick={() => !tbd && onPick(code)}>
+            <div key={i} className={`slot-row ${!t ? 'tbd' : ''} ${picked ? 'picked' : ''}`}
+              onClick={() => t && onPick(code)}>
               <Flag team={t} w={isFinal ? 24 : 18} h={isFinal ? 16 : 12} />
               <span className="nm">{t ? t.name : '— TBD —'}</span>
               <span className="code">{t ? t.code : ''}</span>
-              {isThirdSlot && srcPicked && (
-                <span className="third-src-tag" title={badgeTitle} onClick={badgeClick}>
-                  {badgeLabel}
-                </span>
-              )}
             </div>
           );
         })}
-      </div>
-    );
-  }
-
-  function ThirdSrcModal({ slotIdx, bracket, onPick, onClose }) {
-    const { eligible, mNum } = THIRD_SLOT_INFO[slotIdx];
-    const currentSrc = bracket.knockout.thirdSrc?.[slotIdx] || null;
-
-    return (
-      <div className="modal-bg" onClick={onClose}>
-        <div className="modal" style={{ width: 400 }} onClick={e => e.stopPropagation()}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <div>
-              <div className="eyebrow mono" style={{ marginBottom: 4 }}>M{mNum} · 3rd-place qualifier</div>
-              <h3 style={{ margin: 0 }}>Which group's 3rd place advances?</h3>
-            </div>
-            <button className="btn ghost sm" onClick={onClose} style={{ marginLeft: 12 }}>✕</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {eligible.map(letter => {
-              const g = bracket.groups.find(x => x.letter === letter);
-              const teamCode = g?.picks[2];
-              const team = teamCode ? window.WC_DATA.byCode[teamCode] : null;
-              const isSelected = currentSrc === letter;
-              return (
-                <button key={letter} className={`third-modal-opt ${isSelected ? 'selected' : ''}`}
-                  disabled={!teamCode}
-                  onClick={() => onPick(slotIdx, letter)}>
-                  <span className="third-modal-label">Group {letter} · 3rd place</span>
-                  {team
-                    ? <span className="third-modal-team">
-                        <Flag team={team} w={20} h={14} />
-                        {team.name}
-                      </span>
-                    : <span className="muted" style={{ fontSize: 12 }}>Not picked yet</span>
-                  }
-                </button>
-              );
-            })}
-          </div>
-          <div className="actions">
-            <button className="btn ghost" onClick={onClose}>Cancel</button>
-          </div>
-        </div>
       </div>
     );
   }
