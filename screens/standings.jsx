@@ -1,7 +1,46 @@
 // standings.jsx — Group tables + Knockout results
 
-// ── Data computation ──────────────────────────────────────────
+// ── Data sources ──────────────────────────────────────────────
 
+// Parses the /standings API response into our { groupLetter: [row, ...] } shape.
+// The API returns standings pre-ranked with proper FIFA tiebreakers applied.
+function parseApiStandings(apiResponse) {
+  const result = {};
+  const league = apiResponse[0]?.league;
+  if (!league?.standings) return result;
+
+  league.standings.forEach(group => {
+    // Each `group` is an array of team entries ranked 1–4
+    const firstEntry = group[0];
+    if (!firstEntry) return;
+    // group name from API: "Group A" → letter "A"
+    const m = (firstEntry.group || '').match(/Group\s+([A-L])\b/i);
+    const letter = m ? m[1].toUpperCase() : firstEntry.group;
+    const byCode = window.WC_DATA?.byCode || {};
+
+    result[letter] = group.map(entry => {
+      // Try to find our code by API team name, fall back to first 3 letters
+      const name = entry.team?.name || '';
+      const code = Object.entries(byCode).find(([, t]) => t.name === name)?.[0]
+                || name.slice(0, 3).toUpperCase();
+      return {
+        code,
+        p:   entry.all.played,
+        w:   entry.all.win,
+        d:   entry.all.draw,
+        l:   entry.all.lose,
+        gf:  entry.all.goals.for,
+        ga:  entry.all.goals.against,
+        pts: entry.points,
+      };
+    });
+  });
+
+  return result;
+}
+
+// Fallback: compute standings from raw Supabase match results.
+// Tiebreakers only go down to GF — head-to-head not implemented.
 function computeGroupStandings(groupMatches) {
   const groups = {};
 
@@ -56,34 +95,43 @@ const KO_ROUNDS = [
 // ── Main screen ───────────────────────────────────────────────
 
 function Standings({ nav }) {
-  const [tab, setTab]       = useState('groups');
-  const [matches, setMatches] = useState(null);
-  const [error, setError]   = useState('');
+  const [tab, setTab]             = useState('groups');
+  const [groupStandings, setGroupStandings] = useState(null);
+  const [koMatches, setKoMatches] = useState(null);
+  const [source, setSource]       = useState(''); // 'api' | 'computed'
+  const [error, setError]         = useState('');
 
   useEffect(() => { load(); }, []);
 
   const load = async () => {
     try {
-      // Future hook: replace with direct football-api standings call when available.
-      const data = await window.SB.Matches.getAll();
-      setMatches(data);
+      // Load all matches from Supabase (needed for knockout tab and computed fallback)
+      const allMatches = await window.SB.Matches.getAll();
+      setKoMatches(
+        allMatches.filter(m => m.stage !== 'group')
+                  .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))
+      );
+
+      // Try live FIFA standings from API (proper tiebreakers, including head-to-head)
+      try {
+        const apiData = await window.SB.Matches.getApiStandings();
+        const parsed = parseApiStandings(apiData);
+        if (Object.keys(parsed).length) {
+          setGroupStandings(parsed);
+          setSource('api');
+          return;
+        }
+      } catch { /* API unavailable or pre-tournament — fall through */ }
+
+      // Fallback: compute from Supabase match results
+      setGroupStandings(computeGroupStandings(allMatches.filter(m => m.stage === 'group')));
+      setSource('computed');
     } catch (e) {
       setError(e.message);
-      setMatches([]);
+      setGroupStandings({});
+      setKoMatches([]);
     }
   };
-
-  const groupStandings = useMemo(() => {
-    if (!matches) return null;
-    return computeGroupStandings(matches.filter(m => m.stage === 'group'));
-  }, [matches]);
-
-  const koMatches = useMemo(() => {
-    if (!matches) return [];
-    return matches
-      .filter(m => m.stage !== 'group')
-      .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
-  }, [matches]);
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   const phase = today < '2026-06-11' ? 'pre'
@@ -96,7 +144,7 @@ function Standings({ nav }) {
     knockout: 'Group stage complete. Knockout results below.',
   };
 
-  if (matches === null) {
+  if (groupStandings === null || koMatches === null) {
     return (
       <div className="main fade-in">
         <div className="muted mono" style={{ padding: 40, textAlign: 'center', fontSize: 12 }}>
@@ -114,13 +162,23 @@ function Standings({ nav }) {
           <h1 className="page-title">Standings</h1>
           <div className="subtitle">{subtitles[phase]}</div>
         </div>
-        <div className="day-toggle">
-          <button className={tab === 'groups'   ? 'active' : ''} onClick={() => setTab('groups')}>
-            Groups
-          </button>
-          <button className={tab === 'knockout' ? 'active' : ''} onClick={() => setTab('knockout')}>
-            Knockout
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {source === 'api' && (
+            <span className="tag" style={{ fontSize: 10, background: 'color-mix(in oklch, var(--accent) 15%, var(--bg))' }}>
+              Live via API
+            </span>
+          )}
+          {source === 'computed' && (
+            <span className="tag muted" style={{ fontSize: 10 }}>Computed</span>
+          )}
+          <div className="day-toggle">
+            <button className={tab === 'groups'   ? 'active' : ''} onClick={() => setTab('groups')}>
+              Groups
+            </button>
+            <button className={tab === 'knockout' ? 'active' : ''} onClick={() => setTab('knockout')}>
+              Knockout
+            </button>
+          </div>
         </div>
       </div>
 

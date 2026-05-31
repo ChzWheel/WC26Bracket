@@ -207,8 +207,6 @@
     },
 
     async getGroupMatches() {
-      // Returns all group stage matches ordered for standings computation.
-      // Future: replace body with a direct football-api standings endpoint call.
       const { data, error } = await sb.from('matches')
         .select('*')
         .eq('stage', 'group')
@@ -216,6 +214,31 @@
         .order('kickoff',     { ascending: true });
       if (error) throw error;
       return data;
+    },
+
+    // Fetches pre-computed FIFA standings from API-Football (proper tiebreakers).
+    // Returns the raw `response` array from the API.
+    async getApiStandings() {
+      const resp = await apiCall(`standings?league=${WC2026_LEAGUE}&season=${WC2026_SEASON}`);
+      const json = await resp.json();
+      if (json.errors && Object.keys(json.errors).length) {
+        throw new Error(JSON.stringify(json.errors));
+      }
+      return json.response || [];
+    },
+
+    // Syncs only currently-live fixtures from the API and upserts them to Supabase.
+    // Returns the mapped rows so callers can update state immediately.
+    // Rate limit note: each call consumes 1 API request. Poll at most once per 2 min.
+    async syncLive() {
+      const resp = await apiCall(`fixtures?live=${WC2026_LEAGUE}`);
+      if (!resp.ok) return [];
+      const json = await resp.json();
+      const fixtures = json.response || [];
+      if (!fixtures.length) return [];
+      const rows = fixtures.map(mapFixture);
+      await sb.from('matches').upsert(rows, { onConflict: 'api_id' });
+      return rows;
     },
 
     async isGroupStageDone() {
@@ -246,41 +269,18 @@
     },
 
     async syncMatches() {
-      // Fetch from API-Football via a CORS-friendly proxy approach.
-      // We fetch fixtures for the WC 2026 league.
-      const url = `https://v3.football.api-sports.io/fixtures?league=${WC2026_LEAGUE}&season=${WC2026_SEASON}`;
-      const resp = await fetch(url, {
-        headers: {
-          'x-rapidapi-key': RAPIDAPI_KEY,
-          'x-rapidapi-host': 'v3.football.api-sports.io',
-        },
-      });
-      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      const resp = await apiCall(`fixtures?league=${WC2026_LEAGUE}&season=${WC2026_SEASON}`);
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(`API ${resp.status}: ${body}`);
+      }
       const json = await resp.json();
+      if (json.errors && Object.keys(json.errors).length) {
+        throw new Error(JSON.stringify(json.errors));
+      }
       const fixtures = json.response || [];
-
-      if (!fixtures.length) throw new Error('No fixtures returned. The 2026 WC may not be in API yet.');
-
-      // Map to our schema
-      const rows = fixtures.map(f => ({
-        api_id:      f.fixture.id,
-        kickoff:     f.fixture.date,
-        home_code:   mapTeamCode(f.teams.home.name),
-        away_code:   mapTeamCode(f.teams.away.name),
-        home_name:   f.teams.home.name,
-        away_name:   f.teams.away.name,
-        group_label: f.league.round,
-        stage:       mapStage(f.league.round),
-        venue:       f.fixture.venue?.name || '',
-        status:      mapStatus(f.fixture.status.short),
-        minute:      f.fixture.status.elapsed,
-        home_score:  f.goals.home,
-        away_score:  f.goals.away,
-        highlights:  [],
-        synced_at:   new Date().toISOString(),
-      }));
-
-      // Upsert by api_id
+      if (!fixtures.length) throw new Error('No fixtures returned — WC 2026 may not be in the API yet.');
+      const rows = fixtures.map(mapFixture);
       const { error } = await sb.from('matches').upsert(rows, { onConflict: 'api_id' });
       if (error) throw error;
       return rows.length;
@@ -302,45 +302,106 @@
     },
   };
 
-  // ── Mapping helpers ───────────────────────────────────────
-  // API-Football uses full names; map to our 3-letter codes.
+  // ── API-Football helpers ──────────────────────────────────
+  // Direct API-Sports access (api-football.com) — uses x-apisports-key header.
+  function apiCall(path) {
+    return fetch(`https://v3.football.api-sports.io/${path}`, {
+      headers: { 'x-apisports-key': RAPIDAPI_KEY },
+    });
+  }
+
+  // All 48 WC 2026 teams. Includes alternate spellings API-Football may use.
   const NAME_TO_CODE = {
-    'Canada': 'CAN', 'Mexico': 'MEX', 'United States': 'USA', 'England': 'ENG',
-    'France': 'FRA', 'Germany': 'GER', 'Spain': 'ESP', 'Portugal': 'POR',
-    'Netherlands': 'NED', 'Belgium': 'BEL', 'Argentina': 'ARG', 'Brazil': 'BRA',
-    'Italy': 'ITA', 'Croatia': 'CRO', 'Denmark': 'DEN', 'Switzerland': 'SUI',
-    'Uruguay': 'URU', 'Colombia': 'COL', 'Japan': 'JPN', 'South Korea': 'KOR',
-    'Iran': 'IRN', 'Australia': 'AUS', 'Senegal': 'SEN', 'Morocco': 'MAR',
-    'Poland': 'POL', 'Austria': 'AUT', 'Ukraine': 'UKR', 'Serbia': 'SRB',
-    'Ecuador': 'ECU', 'Paraguay': 'PAR', 'Chile': 'CHI', 'Saudi Arabia': 'KSA',
-    'Uzbekistan': 'UZB', 'Egypt': 'EGY', 'Algeria': 'ALG', 'Nigeria': 'NGA',
-    'Scotland': 'SCO', 'Norway': 'NOR', 'Sweden': 'SWE', 'Qatar': 'QAT',
-    'Tunisia': 'TUN', 'Ghana': 'GHA', "Ivory Coast": 'CIV', "Côte d'Ivoire": 'CIV',
-    'Cameroon': 'CMR', 'South Africa': 'RSA', 'New Zealand': 'NZL',
-    'Costa Rica': 'CRC', 'Panama': 'PAN',
+    // CONCACAF
+    'Canada': 'CAN', 'Mexico': 'MEX', 'United States': 'USA',
+    'Haiti': 'HAI', 'Panama': 'PAN', 'Curaçao': 'CUW', 'Curacao': 'CUW',
+    // UEFA
+    'France': 'FRA', 'England': 'ENG', 'Germany': 'GER', 'Spain': 'ESP',
+    'Portugal': 'POR', 'Netherlands': 'NED', 'Belgium': 'BEL',
+    'Croatia': 'CRO', 'Switzerland': 'SUI', 'Austria': 'AUT',
+    'Scotland': 'SCO', 'Norway': 'NOR', 'Sweden': 'SWE',
+    'Czech Republic': 'CZE', 'Czechia': 'CZE',
+    'Bosnia and Herzegovina': 'BIH', 'Bosnia & Herzegovina': 'BIH',
+    'Turkey': 'TUR', 'Türkiye': 'TUR',
+    // CONMEBOL
+    'Argentina': 'ARG', 'Brazil': 'BRA', 'Uruguay': 'URU',
+    'Colombia': 'COL', 'Ecuador': 'ECU', 'Paraguay': 'PAR',
+    // AFC
+    'Japan': 'JPN', 'South Korea': 'KOR', 'Korea Republic': 'KOR',
+    'Iran': 'IRN', 'Australia': 'AUS', 'Qatar': 'QAT',
+    'Saudi Arabia': 'KSA', 'Uzbekistan': 'UZB', 'Iraq': 'IRQ', 'Jordan': 'JOR',
+    // CAF
+    'Morocco': 'MAR', 'Senegal': 'SEN', 'South Africa': 'RSA',
+    "Ivory Coast": 'CIV', "Côte d'Ivoire": 'CIV', 'Cote d\'Ivoire': 'CIV',
+    'Egypt': 'EGY', 'Algeria': 'ALG', 'Tunisia': 'TUN', 'Ghana': 'GHA',
+    'Cape Verde': 'CPV', 'Cabo Verde': 'CPV',
+    'DR Congo': 'COD', 'Congo DR': 'COD', 'Democratic Republic of the Congo': 'COD',
+    // OFC
+    'New Zealand': 'NZL',
+    // Non-WC teams kept for completeness
+    'Italy': 'ITA', 'Denmark': 'DEN', 'Poland': 'POL', 'Ukraine': 'UKR',
+    'Serbia': 'SRB', 'Chile': 'CHI', 'Nigeria': 'NGA', 'Cameroon': 'CMR',
+    'Costa Rica': 'CRC',
   };
 
   function mapTeamCode(name) {
     return NAME_TO_CODE[name] || name.slice(0, 3).toUpperCase();
   }
 
+  // Extracts just the group letter from the API round string.
+  // "Group A" → "A",  "Group Stage - 1" → "" (handled by mapStage)
+  function mapGroupLabel(round) {
+    const m = round && round.match(/Group\s+([A-L])\b/i);
+    return m ? m[1].toUpperCase() : round || '';
+  }
+
   function mapStage(round) {
     if (!round) return 'group';
     const r = round.toLowerCase();
-    if (r.includes('group'))      return 'group';
-    if (r.includes('32') || r.includes('round of 32')) return 'r32';
-    if (r.includes('16') || r.includes('round of 16')) return 'r16';
-    if (r.includes('quarter'))    return 'qf';
-    if (r.includes('semi'))       return 'sf';
-    if (r.includes('3rd') || r.includes('third')) return 'third';
-    if (r.includes('final'))      return 'final';
+    if (r.includes('group'))           return 'group';
+    if (r.includes('32'))              return 'r32';
+    if (r.includes('16'))              return 'r16';
+    if (r.includes('quarter'))         return 'qf';
+    if (r.includes('semi'))            return 'sf';
+    if (r.includes('3rd') || r.includes('third') || r.includes('place')) return 'third';
+    if (r.includes('final'))           return 'final';
     return 'group';
   }
 
   function mapStatus(short) {
-    const map = { 'FT': 'ft', 'AET': 'ft', 'PEN': 'ft', '1H': 'live', '2H': 'live',
-                  'HT': 'ht', 'LIVE': 'live', 'NS': 'upcoming', 'TBD': 'upcoming' };
+    const map = {
+      // Finished
+      'FT': 'ft', 'AET': 'ft', 'PEN': 'ft',
+      // Live
+      '1H': 'live', '2H': 'live', 'ET': 'live', 'P': 'live', 'INT': 'live', 'LIVE': 'live',
+      // Paused
+      'HT': 'ht', 'BT': 'ht',
+      // Not started / deferred
+      'NS': 'upcoming', 'TBD': 'upcoming', 'PST': 'upcoming',
+      'SUSP': 'upcoming', 'ABD': 'upcoming', 'CANC': 'upcoming',
+    };
     return map[short] || 'upcoming';
+  }
+
+  // Maps a single API-Football fixture object to our DB schema.
+  function mapFixture(f) {
+    return {
+      api_id:      f.fixture.id,
+      kickoff:     f.fixture.date,
+      home_code:   mapTeamCode(f.teams.home.name),
+      away_code:   mapTeamCode(f.teams.away.name),
+      home_name:   f.teams.home.name,
+      away_name:   f.teams.away.name,
+      group_label: mapGroupLabel(f.league.round),
+      stage:       mapStage(f.league.round),
+      venue:       f.fixture.venue?.name || '',
+      status:      mapStatus(f.fixture.status.short),
+      minute:      f.fixture.status.elapsed,
+      home_score:  f.goals.home,
+      away_score:  f.goals.away,
+      highlights:  [],
+      synced_at:   new Date().toISOString(),
+    };
   }
 
   // ── Expose globally ───────────────────────────────────────
