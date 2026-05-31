@@ -206,6 +206,18 @@
       return data || [];
     },
 
+    async getGroupMatches() {
+      // Returns all group stage matches ordered for standings computation.
+      // Future: replace body with a direct football-api standings endpoint call.
+      const { data, error } = await sb.from('matches')
+        .select('*')
+        .eq('stage', 'group')
+        .order('group_label', { ascending: true })
+        .order('kickoff',     { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+
     async isGroupStageDone() {
       const { count, error } = await sb.from('matches')
         .select('*', { count: 'exact', head: true })

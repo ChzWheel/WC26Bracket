@@ -406,6 +406,7 @@ function App() {
       'summary':     'Review & Submit',
       'pool':        'Pool',
       'schedule':    'Schedule',
+      'standings':   'Standings',
       'admin':       'Admin',
     };
     document.title = `${titles[r.screen] || 'Brackt'} · Brackt WC '26`;
@@ -468,6 +469,9 @@ function App() {
     case 'schedule':
       screen = <Schedule nav={nav} />;
       break;
+    case 'standings':
+      screen = <Standings nav={nav} />;
+      break;
     case 'admin':
       screen = isAdmin
         ? <AdminPanel user={user} nav={nav} />
@@ -502,9 +506,10 @@ function NotFound({ nav }) {
 // ── TopBar ────────────────────────────────────────────────
 function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
   const active = (r) => route.screen === r ||
-    (r === 'pools'    && route.screen === 'pool') ||
-    (r === 'schedule' && route.screen === 'schedule') ||
-    (r === 'brackets' && ['group-stage','knockout','summary'].includes(route.screen));
+    (r === 'pools'     && route.screen === 'pool') ||
+    (r === 'schedule'  && route.screen === 'schedule') ||
+    (r === 'standings' && route.screen === 'standings') ||
+    (r === 'brackets'  && ['group-stage','knockout','summary'].includes(route.screen));
 
   return (
     <header className="topbar">
@@ -535,6 +540,10 @@ function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
         <button className={active('schedule') ? 'active' : ''}
           onClick={() => nav({ screen: 'schedule' })}>
           Schedule <span className="live-dot sm inline" />
+        </button>
+        <button className={active('standings') ? 'active' : ''}
+          onClick={() => nav({ screen: 'standings' })}>
+          Standings
         </button>
         {isAdmin && (
           <button className={active('admin') ? 'active' : ''}

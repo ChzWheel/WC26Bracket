@@ -1368,6 +1368,179 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
   margin-bottom: 16px;
 }
 
+/* ── Standings ────────────────────────────────────────────── */
+
+.st-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+@media (max-width: 1050px) { .st-groups-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px)  { .st-groups-grid { grid-template-columns: 1fr; } }
+
+.st-group {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.st-group-head {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.st-table thead th {
+  padding: 5px 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.st-table thead th.st-c-team { text-align: left; }
+
+.st-row td { padding: 6px 6px; border-bottom: 1px solid var(--line); }
+.st-row:last-child td { border-bottom: none; }
+
+/* Qualification zone indicator — left border on rank cell */
+.st-row.st-zone-qualify td:first-child { border-left: 3px solid var(--accent); }
+.st-row.st-zone-third   td:first-child { border-left: 3px solid oklch(0.78 0.18 80); }
+
+.st-c-rank { width: 24px; text-align: center; color: var(--fg-3); font-size: 11px; }
+.st-c-num  { width: 28px; text-align: center; color: var(--fg-2); }
+.st-c-pts  { width: 28px; text-align: center; font-weight: 700; color: var(--fg); }
+.st-c-team { padding-left: 8px !important; }
+
+.st-flag { font-size: 14px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
+
+.st-c-team { display: flex; align-items: center; gap: 0; }
+.st-name   { font-weight: 500; font-size: 12px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-code   { font-size: 10px; margin-left: 4px; flex-shrink: 0; display: none; }
+
+.st-hide-sm { /* shown by default, hidden on small cards */ }
+
+.st-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--fg-3);
+  border-top: 1px solid var(--line);
+}
+.st-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.st-legend-dot.qualify { background: var(--accent); }
+.st-legend-dot.third   { background: oklch(0.78 0.18 80); }
+
+/* On very narrow group cards, hide GF/GA and show team code instead of full name */
+@media (max-width: 640px) {
+  .st-hide-sm { display: none; }
+  .st-name    { font-size: 11px; max-width: 90px; }
+}
+
+/* ── Knockout tab ─────────────────────────────────────────── */
+
+.st-ko-rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.st-ko-round-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.st-stage-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.st-stage-dot--r32   { background: oklch(0.70 0.20 55);  }
+.st-stage-dot--r16   { background: oklch(0.74 0.19 65);  }
+.st-stage-dot--qf    { background: oklch(0.62 0.20 310); }
+.st-stage-dot--sf    { background: oklch(0.78 0.18 90);  }
+.st-stage-dot--third { background: oklch(0.55 0.06 100); }
+.st-stage-dot--final { background: oklch(0.80 0.22 90);  }
+
+.st-ko-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.st-ko-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.st-ko-team {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--fg-2);
+  gap: 0;
+}
+.st-ko-team.winner { color: var(--fg); font-weight: 600; }
+.st-ko-team.loser  { opacity: 0.45; }
+
+.st-ko-tname { flex: 1; }
+
+.st-ko-score {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+  min-width: 20px;
+  text-align: right;
+}
+.st-ko-score.winner { color: var(--fg); }
+
+.st-ko-live {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
 /* ── Scrollbar tuning ─────────────────────────────────────── */
 .bracket-scroll::-webkit-scrollbar, .gs-rail::-webkit-scrollbar { height: 10px; width: 10px; }
 .bracket-scroll::-webkit-scrollbar-thumb, .gs-rail::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 10px; }
