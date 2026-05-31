@@ -420,11 +420,11 @@ function BracketViewModal({ bracket, memberName, onClose }) {
         </div>
 
         {/* 3rd-place qualifiers */}
-        {(knockout.thirdQualifiers?.length > 0) && (
-          <div style={{ marginBottom: 24 }}>
-            <div className="mono" style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', marginBottom: 8 }}>
-              3RD-PLACE QUALIFIERS
-            </div>
+        <div style={{ marginBottom: 24 }}>
+          <div className="mono" style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', marginBottom: 8 }}>
+            3RD-PLACE QUALIFIERS ({knockout.thirdQualifiers?.length || 0}/8)
+          </div>
+          {(knockout.thirdQualifiers?.length > 0) ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {knockout.thirdQualifiers.map(code => {
                 const team = WC.byCode[code];
@@ -441,8 +441,10 @@ function BracketViewModal({ bracket, memberName, onClose }) {
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <span className="muted" style={{ fontSize: 12 }}>Not selected</span>
+          )}
+        </div>
 
         {/* Knockout */}
         <div className="mono" style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', marginBottom: 8 }}>

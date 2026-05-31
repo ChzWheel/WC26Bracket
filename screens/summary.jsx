@@ -104,9 +104,14 @@ function Summary({ bracket, dispatch, nav, state }) {
             </div>
           </div>
 
-          {(bracket.knockout.thirdQualifiers?.length > 0) && (
-            <div className="card padded" style={{ marginBottom: 16 }}>
-              <h3 style={{ margin: '0 0 14px', fontSize: 13 }}>3rd-place qualifiers</h3>
+          <div className="card padded" style={{ marginBottom: 16 }}>
+            <div className="spread" style={{ marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>3rd-place qualifiers</h3>
+              <span className="mono muted" style={{ fontSize: 11 }}>
+                {(bracket.knockout.thirdQualifiers?.length || 0)} / 8
+              </span>
+            </div>
+            {(bracket.knockout.thirdQualifiers?.length > 0) ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                 {bracket.knockout.thirdQualifiers.map(code => {
                   const t = window.WC_DATA.byCode[code];
@@ -124,8 +129,16 @@ function Summary({ bracket, dispatch, nav, state }) {
                   );
                 })}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="muted" style={{ fontSize: 13 }}>
+                No qualifiers picked yet.{' '}
+                <button className="btn ghost sm" style={{ display: 'inline', padding: '2px 8px' }}
+                  onClick={() => nav({ screen: 'knockout', bracketId: bracket.id })}>
+                  Go to knockout →
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="card padded">
             <h3 style={{ margin: '0 0 14px', fontSize: 13 }}>Knockout picks</h3>

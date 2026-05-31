@@ -365,13 +365,11 @@
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn primary" disabled={count !== 8}
-            style={{ opacity: count === 8 ? 1 : 0.4, cursor: count === 8 ? 'pointer' : 'not-allowed' }}
-            onClick={() => {}}>
-            Continue to bracket →
-          </button>
-        </div>
+        {count < 8 && (
+          <div className="muted" style={{ fontSize: 12, textAlign: 'right' }}>
+            Select {8 - count} more team{8 - count !== 1 ? 's' : ''} to unlock the bracket
+          </div>
+        )}
       </div>
     );
   }
