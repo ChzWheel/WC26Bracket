@@ -17,25 +17,22 @@ function Schedule({ nav }) {
     if (tab === 'calendar' && allData === null) loadAll();
   }, [tab]);
 
-  // Auto-poll live scores every 2 minutes when live matches are on.
-  // Each poll costs 1 API request — ensure your plan covers the usage.
+  // Live scores are pushed to Supabase every 15 min by the Netlify scheduled
+  // function (netlify/functions/sync-live.js). Poll Supabase — not the API —
+  // to pick up those updates without burning API quota.
   useEffect(() => {
     if (tab !== 'today' || !todayData) return;
     const hasLive = todayData.some(m => m.status === 'live' || m.status === 'ht');
     if (!hasLive) return;
 
-    const poll = async () => {
+    const refresh = async () => {
       try {
-        const liveRows = await window.SB.Matches.syncLive();
-        if (!liveRows.length) return;
-        const byApiId = Object.fromEntries(liveRows.map(r => [r.api_id, r]));
-        setTodayData(prev =>
-          (prev || []).map(m => (m.api_id && byApiId[m.api_id]) ? byApiId[m.api_id] : m)
-        );
-      } catch { /* silent — network or quota failure */ }
+        const fresh = await window.SB.Matches.getByDay('today');
+        if (fresh?.length) setTodayData(fresh);
+      } catch { /* silent */ }
     };
 
-    const interval = setInterval(poll, 120000); // 2 minutes
+    const interval = setInterval(refresh, 60000); // re-read Supabase every 60s (free)
     return () => clearInterval(interval);
   }, [tab, todayData]);
 

@@ -1,12 +1,13 @@
 // admin.jsx — Admin panel: sync scores, manual overrides, lock brackets.
 
 function AdminPanel({ user, nav }) {
-  const [matches, setMatches]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [syncing, setSyncing]   = useState(false);
-  const [syncMsg, setSyncMsg]   = useState('');
-  const [editMatch, setEditMatch] = useState(null); // match being manually edited
-  const [locked, setLocked]     = useState(false);
+  const [matches, setMatches]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [syncing, setSyncing]     = useState(false);
+  const [syncingLive, setSyncingLive] = useState(false);
+  const [syncMsg, setSyncMsg]     = useState('');
+  const [editMatch, setEditMatch] = useState(null);
+  const [locked, setLocked]       = useState(false);
 
   useEffect(() => {
     loadMatches();
@@ -47,6 +48,22 @@ function AdminPanel({ user, nav }) {
     }
   };
 
+  const syncLiveNow = async () => {
+    setSyncingLive(true);
+    setSyncMsg('');
+    try {
+      const rows = await window.SB.Matches.syncLive();
+      setSyncMsg(rows.length
+        ? `✓ Updated ${rows.length} live match${rows.length === 1 ? '' : 'es'}.`
+        : '✓ No live matches right now.');
+      if (rows.length) await loadMatches();
+    } catch (e) {
+      setSyncMsg(`✗ Live sync failed: ${e.message}`);
+    } finally {
+      setSyncingLive(false);
+    }
+  };
+
   const toggleLock = async () => {
     const next = !locked;
     await window.SB.Admin.lockBrackets(next);
@@ -84,7 +101,10 @@ function AdminPanel({ user, nav }) {
         <div>
           <div className="eyebrow">Admin Panel</div>
           <h1 className="page-title">Score management</h1>
-          <div className="subtitle">Sync from API-Football or override scores manually.</div>
+          <div className="subtitle">
+            Live scores auto-sync every 15 min during match hours via Netlify.
+            Use the buttons below for a full sync or to trigger an immediate live update.
+          </div>
         </div>
         <div className="row">
           <button className="btn ghost" onClick={() => nav({ screen: 'dashboard' })}>← Dashboard</button>
@@ -93,8 +113,12 @@ function AdminPanel({ user, nav }) {
 
       {/* ── Control strip ── */}
       <div className="card padded" style={{ marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn accent" onClick={syncNow} disabled={syncing}>
-          {syncing ? '⟳ Syncing…' : '⟳ Sync from API-Football now'}
+        <button className="btn accent" onClick={syncNow} disabled={syncing || syncingLive}>
+          {syncing ? '⟳ Syncing…' : '⟳ Full sync'}
+        </button>
+        <button className="btn" onClick={syncLiveNow} disabled={syncing || syncingLive}
+          style={{ background: 'color-mix(in oklch, oklch(0.62 0.22 25) 15%, var(--bg))', border: '1px solid oklch(0.62 0.22 25)', color: 'oklch(0.62 0.22 25)' }}>
+          {syncingLive ? '⟳ Syncing live…' : '⟳ Sync live now'}
         </button>
         <button className={`btn ${locked ? 'primary' : ''}`} onClick={toggleLock}>
           {locked ? '🔒 Brackets locked — click to unlock' : '🔓 Brackets open — click to lock'}

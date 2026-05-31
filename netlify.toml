@@ -5,6 +5,15 @@
 [build.environment]
   SECRETS_SCAN_OMIT_PATHS = "config.js"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Fires every 15 min during match hours (UTC 17:00–07:59 = noon–2 AM CT).
+# Skips UTC 08:00–16:59 (3 AM–noon CT) — no matches in that window.
+[functions."sync-live"]
+  schedule = "*/15 0-7,17-23 * * *"
+
 [[headers]]
   for = "/*.html"
   [headers.values]
