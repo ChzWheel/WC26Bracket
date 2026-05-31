@@ -171,29 +171,91 @@ function Schedule({ nav }) {
 
 // ── Calendar components ───────────────────────────────────────
 
+const TOURNAMENT_START = '2026-06-11';
+const TOURNAMENT_END   = '2026-07-19';
+
+const FILTER_OPTIONS = [
+  { key: 'all',      label: 'All' },
+  { key: 'group',    label: 'Group Stage' },
+  { key: 'knockout', label: 'Knockout' },
+];
+const KNOCKOUT_STAGES = new Set(['r32', 'r16', 'qf', 'sf', 'third', 'final']);
+
 function CalendarView({ matches }) {
+  const [filter, setFilter] = useState('all');
+
+  const filtered = useMemo(() => {
+    if (filter === 'all')      return matches;
+    if (filter === 'group')    return matches.filter(m => m.stage === 'group');
+    if (filter === 'knockout') return matches.filter(m => KNOCKOUT_STAGES.has(m.stage));
+    return matches;
+  }, [matches, filter]);
+
   const byDate = useMemo(() => {
     const map = {};
-    matches.forEach(m => {
+    filtered.forEach(m => {
       if (!map[m.date]) map[m.date] = [];
       map[m.date].push(m);
     });
     return map;
-  }, [matches]);
+  }, [filtered]);
+
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: CDT });
+  const inTournament = todayStr >= TOURNAMENT_START && todayStr <= TOURNAMENT_END;
+
+  const scrollToToday = () => {
+    document.querySelector('.cal-cell.is-today')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   return (
-    <div className="cal-wrap">
-      <CalMonth year={2026} month={5} byDate={byDate} />
-      <CalMonth year={2026} month={6} byDate={byDate} />
-    </div>
+    <>
+      <div className="cal-toolbar">
+        <div className="cal-filter">
+          {FILTER_OPTIONS.map(o => (
+            <button
+              key={o.key}
+              className={`cal-filter-btn${filter === o.key ? ' active' : ''}`}
+              onClick={() => setFilter(o.key)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        {inTournament && (
+          <button className="cal-today-btn" onClick={scrollToToday}>Jump to today</button>
+        )}
+      </div>
+      <div className="cal-wrap">
+        <CalMonth year={2026} month={5} byDate={byDate} />
+        <CalMonth year={2026} month={6} byDate={byDate} />
+      </div>
+    </>
   );
 }
+
+const CHIP_LIMIT = 2;
+
+const STAGE_LABELS = {
+  group: 'Group Stage', r32: 'Round of 32', r16: 'Round of 16',
+  qf: 'Quarter-final', sf: 'Semi-final', third: '3rd Place', final: 'Final',
+};
 
 function CalMonth({ year, month, byDate }) {
   const monthName   = new Date(year, month, 1).toLocaleString('en-US', { month: 'long' });
   const firstDow    = new Date(year, month, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayStr    = new Date().toISOString().slice(0, 10);
+  const todayStr    = new Date().toLocaleDateString('en-CA', { timeZone: CDT });
+  const [expanded, setExpanded] = useState(new Set());
+  const [openChip, setOpenChip] = useState(null);
+  const byCode = window.WC_DATA?.byCode || {};
+
+  const toggleDay = (dateStr) => setExpanded(prev => {
+    const next = new Set(prev);
+    next.has(dateStr) ? next.delete(dateStr) : next.add(dateStr);
+    return next;
+  });
+
+  const toggleChip = (id) => setOpenChip(prev => prev === id ? null : id);
 
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
@@ -208,20 +270,49 @@ function CalMonth({ year, month, byDate }) {
         ))}
         {cells.map((d, i) => {
           if (d === null) return <div key={`e${i}`} className="cal-cell empty" />;
-          const mm      = String(month + 1).padStart(2, '0');
-          const dd      = String(d).padStart(2, '0');
-          const dateStr = `${year}-${mm}-${dd}`;
-          const games   = byDate[dateStr] || [];
-          const isToday = dateStr === todayStr;
+          const mm         = String(month + 1).padStart(2, '0');
+          const dd         = String(d).padStart(2, '0');
+          const dateStr    = `${year}-${mm}-${dd}`;
+          const games      = byDate[dateStr] || [];
+          const isToday    = dateStr === todayStr;
+          const isExpanded = expanded.has(dateStr);
+          const visible    = isExpanded ? games : games.slice(0, CHIP_LIMIT);
+          const overflow   = games.length - CHIP_LIMIT;
           return (
             <div key={d} className={`cal-cell${games.length ? ' has-matches' : ''}${isToday ? ' is-today' : ''}`}>
               <div className="cal-day-num">{d}</div>
-              {games.map(m => (
-                <div key={m.id} className="cal-chip">
-                  <span className="cal-chip-time mono">{m.kickoff}</span>
-                  <span className="cal-chip-teams">{m.home} <span className="cal-v">v</span> {m.away}</span>
-                </div>
-              ))}
+              {visible.map(m => {
+                const isOpen   = openChip === m.id;
+                const homeName = byCode[m.home]?.name || m.home;
+                const awayName = byCode[m.away]?.name || m.away;
+                const stageLabel = m.stage === 'group'
+                  ? `Group ${m.group}`
+                  : (STAGE_LABELS[m.stage] || m.stage);
+                return (
+                  <div key={m.id}>
+                    <button
+                      className={`cal-chip cal-chip--${m.stage || 'group'}${isOpen ? ' open' : ''}`}
+                      onClick={() => toggleChip(m.id)}
+                      aria-expanded={isOpen}
+                    >
+                      <span className="cal-chip-time mono">{m.kickoff}</span>
+                      <span className="cal-chip-teams">{m.home} <span className="cal-v">v</span> {m.away}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="cal-chip-detail">
+                        <div className="cal-chip-detail-teams">{homeName} <span className="cal-v">v</span> {awayName}</div>
+                        <div className="cal-chip-detail-row">{m.kickoff} CT · {stageLabel}</div>
+                        <div className="cal-chip-detail-row">{m.venue}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {overflow > 0 && (
+                <button className="cal-more" onClick={() => toggleDay(dateStr)}>
+                  {isExpanded ? 'show less' : `+${overflow} more`}
+                </button>
+              )}
             </div>
           );
         })}
@@ -245,6 +336,7 @@ function dbToMatch(m) {
     home:       m.home_code,
     away:       m.away_code,
     group:      m.group_label || '',
+    stage:      m.stage || '',
     venue:      m.venue || '',
     status:     m.status,
     homeScore:  m.home_score,
