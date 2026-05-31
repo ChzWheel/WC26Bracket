@@ -1029,6 +1029,86 @@ label.field > .lbl { font-size: 12px; color: var(--fg-2); font-weight: 500; }
   .cal-day-num { font-size: 10px; }
 }
 
+/* ── Globe loader ─────────────────────────────────────────── */
+.globe-loader {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: grid;
+  place-items: center;
+}
+.globe-loader svg {
+  position: absolute;
+  inset: 0;
+  width: 200px;
+  height: 200px;
+  overflow: visible;
+}
+.gl-main-svg {
+  will-change: transform;
+  transform-origin: 100px 100px;
+}
+.globe-sphere   { fill: var(--bg); stroke: var(--fg); stroke-width: 1.1; }
+.globe-graticule { fill: none; stroke: var(--fg); stroke-width: 0.4; opacity: 0.28; }
+.globe-land     { fill: var(--fg); fill-opacity: 0.86; stroke: var(--bg); stroke-width: 0.35; stroke-linejoin: round; }
+.ball-pentagon  { fill: var(--fg); stroke: var(--fg); stroke-width: 0.6; stroke-linejoin: round; }
+.sparkle-layer  { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.sparkle        { fill: var(--fg); opacity: 0; transform-box: fill-box; transform-origin: center; }
+
+/* ── Third-place source picker (R32 slots) ────────────────── */
+.third-src-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 5px 10px;
+  cursor: default;
+  min-height: 0;
+}
+.third-src-lbl {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-3);
+}
+.third-src-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.third-src-opt {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  cursor: pointer;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--fg);
+  transition: background 0.1s, border-color 0.1s;
+}
+.third-src-opt:hover:not(:disabled) {
+  background: var(--bg-3);
+  border-color: var(--fg-3);
+}
+.third-src-opt:disabled { opacity: 0.4; cursor: default; }
+.third-src-tag {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--mono, monospace);
+  color: var(--fg-3);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.third-src-tag:hover { color: var(--danger); border-color: var(--danger); }
+
 /* ── Scrollbar tuning ─────────────────────────────────────── */
 .bracket-scroll::-webkit-scrollbar, .gs-rail::-webkit-scrollbar { height: 10px; width: 10px; }
 .bracket-scroll::-webkit-scrollbar-thumb, .gs-rail::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 10px; }

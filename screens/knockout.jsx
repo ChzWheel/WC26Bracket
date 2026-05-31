@@ -1,34 +1,44 @@
-// Knockout bracket — 32 → 16 → 8 → 4 → 2 → 1, classic left-to-right tree.
-// Clicking a team in a match picks them as the winner; advances automatically.
+// Knockout bracket — official FIFA WC 2026 format.
+// R32 seeding and bracket path verified against FIFA official schedule (Wikipedia).
+// Third-place qualifier slots require the user to pick which eligible group's 3rd advances.
 
 (function () {
-  // R32 seeding template — 16 matches × 2 source slots.
-  // Each source is { kind, ...meta }:
-  //   { kind:'group', letter:'A', rank:0|1 }  → group winner / runner-up
-  //   { kind:'third', idx:0..7 }              → best-3rds (auto-derived)
+  // Official FIFA WC 2026 R32 bracket pairings (corrected).
+  // Consecutive pairs feed the same R16 match:
+  //   [0,1]→R16[0]=M89  [2,3]→R16[1]=M90  [4,5]→R16[2]=M93  [6,7]→R16[3]=M94
+  //   [8,9]→R16[4]=M91  [10,11]→R16[5]=M92  [12,13]→R16[6]=M95  [14,15]→R16[7]=M96
   const R32_SEED = [
-    [{ kind: 'group', letter: 'A', rank: 0 }, { kind: 'third', idx: 0 }],
-    [{ kind: 'group', letter: 'B', rank: 0 }, { kind: 'group', letter: 'C', rank: 1 }],
-    [{ kind: 'group', letter: 'C', rank: 0 }, { kind: 'third', idx: 1 }],
-    [{ kind: 'group', letter: 'D', rank: 0 }, { kind: 'group', letter: 'A', rank: 1 }],
-    [{ kind: 'group', letter: 'E', rank: 0 }, { kind: 'third', idx: 2 }],
-    [{ kind: 'group', letter: 'F', rank: 0 }, { kind: 'group', letter: 'G', rank: 1 }],
-    [{ kind: 'group', letter: 'G', rank: 0 }, { kind: 'third', idx: 3 }],
-    [{ kind: 'group', letter: 'H', rank: 0 }, { kind: 'group', letter: 'E', rank: 1 }],
-    [{ kind: 'group', letter: 'I', rank: 0 }, { kind: 'third', idx: 4 }],
-    [{ kind: 'group', letter: 'J', rank: 0 }, { kind: 'group', letter: 'K', rank: 1 }],
-    [{ kind: 'group', letter: 'K', rank: 0 }, { kind: 'third', idx: 5 }],
-    [{ kind: 'group', letter: 'L', rank: 0 }, { kind: 'group', letter: 'I', rank: 1 }],
-    [{ kind: 'group', letter: 'B', rank: 1 }, { kind: 'third', idx: 6 }],
-    [{ kind: 'group', letter: 'D', rank: 1 }, { kind: 'group', letter: 'J', rank: 1 }],
-    [{ kind: 'group', letter: 'F', rank: 1 }, { kind: 'third', idx: 7 }],
-    [{ kind: 'group', letter: 'H', rank: 1 }, { kind: 'group', letter: 'L', rank: 1 }],
+    [{ kind:'group', letter:'E', rank:0 }, { kind:'third', slotIdx:0, eligible:['A','B','C','D','F'] }], // M74
+    [{ kind:'group', letter:'I', rank:0 }, { kind:'third', slotIdx:1, eligible:['C','D','F','G','H'] }], // M77
+    [{ kind:'group', letter:'A', rank:1 }, { kind:'group', letter:'B', rank:1 }],                        // M73
+    [{ kind:'group', letter:'F', rank:0 }, { kind:'group', letter:'C', rank:1 }],                        // M75
+    [{ kind:'group', letter:'K', rank:1 }, { kind:'group', letter:'L', rank:1 }],                        // M83
+    [{ kind:'group', letter:'H', rank:0 }, { kind:'group', letter:'J', rank:1 }],                        // M84
+    [{ kind:'group', letter:'D', rank:0 }, { kind:'third', slotIdx:2, eligible:['B','E','F','I','J'] }], // M81
+    [{ kind:'group', letter:'G', rank:0 }, { kind:'third', slotIdx:3, eligible:['A','E','H','I','J'] }], // M82
+    [{ kind:'group', letter:'C', rank:0 }, { kind:'group', letter:'F', rank:1 }],                        // M76
+    [{ kind:'group', letter:'E', rank:1 }, { kind:'group', letter:'I', rank:1 }],                        // M78
+    [{ kind:'group', letter:'A', rank:0 }, { kind:'third', slotIdx:4, eligible:['C','E','F','H','I'] }], // M79
+    [{ kind:'group', letter:'L', rank:0 }, { kind:'third', slotIdx:5, eligible:['E','H','I','J','K'] }], // M80
+    [{ kind:'group', letter:'J', rank:0 }, { kind:'group', letter:'H', rank:1 }],                        // M86
+    [{ kind:'group', letter:'D', rank:1 }, { kind:'group', letter:'G', rank:1 }],                        // M88
+    [{ kind:'group', letter:'B', rank:0 }, { kind:'third', slotIdx:6, eligible:['E','F','G','I','J'] }], // M85
+    [{ kind:'group', letter:'K', rank:0 }, { kind:'third', slotIdx:7, eligible:['D','E','I','J','L'] }], // M87
   ];
-  // 8 best-3rds: take the 3rd-ranked pick from groups A–H.
-  const THIRD_GROUPS = 'ABCDEFGH'.split('');
 
-  function getThirdCode(bracket, idx) {
-    const letter = THIRD_GROUPS[idx];
+  // Official FIFA match numbers by round and bracket index.
+  const FIFA_MATCH_NUMS = {
+    r32:   [74, 77, 73, 75, 83, 84, 81, 82, 76, 78, 79, 80, 86, 88, 85, 87],
+    r16:   [89, 90, 93, 94, 91, 92, 95, 96],
+    qf:    [97, 98, 99, 100],
+    sf:    [101, 102],
+    final: [104],
+    third: [103],
+  };
+
+  function getThirdCode(bracket, slotIdx) {
+    const letter = bracket.knockout.thirdSrc?.[slotIdx];
+    if (!letter) return null;
     const g = bracket.groups.find(x => x.letter === letter);
     return g?.picks[2] || null;
   }
@@ -40,13 +50,11 @@
         const g = bracket.groups.find(x => x.letter === src.letter);
         return g?.picks[src.rank] || null;
       }
-      return getThirdCode(bracket, src.idx);
+      return getThirdCode(bracket, src.slotIdx);
     }
-    // For R16+, source is the winner of the prior round's pair.
     const prev = { r16: 'r32', qf: 'r16', sf: 'qf', final: 'sf', third: 'sf' }[round];
     if (round === 'third') {
-      // 3rd-place playoff = SF losers
-      const sfWinner = bracket.knockout.sf?.[slot]; // 'slot' here is sf match idx 0 or 1
+      const sfWinner = bracket.knockout.sf?.[slot];
       if (!sfWinner) return null;
       const sfMatch = matchSources(bracket, 'sf', slot);
       return sfMatch.find(c => c && c !== sfWinner) || null;
@@ -54,22 +62,22 @@
     const prevMatchIdx = matchIdx * 2 + slot;
     return bracket.knockout[prev]?.[prevMatchIdx] || null;
   }
+
   function matchSources(bracket, round, matchIdx) {
     return [resolveSlot(bracket, round, matchIdx, 0), resolveSlot(bracket, round, matchIdx, 1)];
   }
 
   const ROUNDS = [
-    { key: 'r32', label: 'Round of 32',  matches: 16 },
-    { key: 'r16', label: 'Round of 16',  matches: 8 },
-    { key: 'qf',  label: 'Quarter-finals', matches: 4 },
-    { key: 'sf',  label: 'Semi-finals', matches: 2 },
-    { key: 'final', label: 'Final',     matches: 1 },
+    { key: 'r32',   label: 'Round of 32',    matches: 16 },
+    { key: 'r16',   label: 'Round of 16',    matches: 8  },
+    { key: 'qf',    label: 'Quarter-finals', matches: 4  },
+    { key: 'sf',    label: 'Semi-finals',    matches: 2  },
+    { key: 'final', label: 'Final',          matches: 1  },
   ];
 
   function Knockout({ bracket, dispatch, nav }) {
     const groupsDone = bracket.groups.every(g => g.picks.every(Boolean));
 
-    // Cascade clear: if a downstream slot referenced a now-different team, clear it.
     const pickWinner = (round, matchIdx, code) => {
       dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
         const ko = { ...b.knockout, r32: { ...b.knockout.r32 }, r16: { ...b.knockout.r16 },
@@ -78,7 +86,6 @@
         else if (round === 'third') ko.third = code;
         else                        ko[round][matchIdx] = code;
 
-        // Cascade: clear downstream picks that are no longer in their match.
         const downstream = { r32: ['r16','qf','sf','final','third'], r16: ['qf','sf','final','third'],
                              qf: ['sf','final','third'], sf: ['final','third'], final: [], third: [] };
         downstream[round].forEach(rd => {
@@ -92,27 +99,52 @@
           }
         });
 
-        // Step only advances to 2 (review) when user clicks the CTA — not automatically.
         return { ...b, knockout: ko, step: Math.max(b.step, 1) };
       }});
     };
 
-    const pickFinal = (code) => pickWinner('final', 0, code);
+    // Change which group's 3rd-place team fills a third-place R32 slot.
+    // Pass null to clear the selection and reset downstream picks.
+    const pickThirdSrc = (slotIdx, groupLetterOrNull) => {
+      dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => {
+        const ko = { ...b.knockout, r32: { ...b.knockout.r32 }, r16: { ...b.knockout.r16 },
+                     qf: { ...b.knockout.qf }, sf: { ...b.knockout.sf },
+                     thirdSrc: [...(b.knockout.thirdSrc || Array(8).fill(null))] };
+        ko.thirdSrc[slotIdx] = groupLetterOrNull;
+
+        const matchIdx = R32_SEED.findIndex(pair =>
+          pair.some(s => s.kind === 'third' && s.slotIdx === slotIdx)
+        );
+        if (matchIdx >= 0) {
+          ko.r32[matchIdx] = null;
+          ['r16', 'qf', 'sf'].forEach(rd => {
+            const n = ROUNDS.find(r => r.key === rd).matches;
+            for (let i = 0; i < n; i++) {
+              const srcs = matchSources({ ...b, knockout: ko }, rd, i);
+              if (ko[rd]?.[i] && !srcs.includes(ko[rd][i])) ko[rd][i] = null;
+            }
+          });
+          ko.final = null;
+          ko.third = null;
+        }
+
+        return { ...b, knockout: ko };
+      }});
+    };
+
     const pickThird = (code) => {
       dispatch({ type: 'UPDATE_BRACKET', id: bracket.id, patch: (b) => ({
         ...b, knockout: { ...b.knockout, third: code },
       })});
     };
 
-    const winner = bracket.knockout.final ? window.WC_DATA.byCode[bracket.knockout.final] : null;
     const thirdSources = useMemo(() => {
       const ko = bracket.knockout;
-      const losers = [0, 1].map(i => {
+      return [0, 1].map(i => {
         const w = ko.sf?.[i];
         const srcs = matchSources(bracket, 'sf', i);
         return srcs.find(c => c && c !== w) || null;
       });
-      return losers;
     }, [bracket]);
 
     if (!groupsDone) {
@@ -145,8 +177,8 @@
             <div className="eyebrow">{bracket.name} · Step 2 of 3</div>
             <h1 className="page-title">Knockout bracket</h1>
             <div className="subtitle">
-              Click a team in each match to pick the winner. Picks cascade — your champion will
-              appear in the final.
+              Click a team in each match to pick the winner. For 3rd-place qualifier slots,
+              first choose which eligible group's 3rd-place team advances.
             </div>
           </div>
           <div className="row">
@@ -185,19 +217,20 @@
         )}
 
         <div className="bracket-scroll">
-          <BracketTree bracket={bracket} pickWinner={pickWinner} thirdSources={thirdSources} pickThird={pickThird} />
+          <BracketTree bracket={bracket} pickWinner={pickWinner} pickThirdSrc={pickThirdSrc}
+            thirdSources={thirdSources} pickThird={pickThird} />
         </div>
       </div>
     );
   }
 
-  function BracketTree({ bracket, pickWinner, thirdSources, pickThird }) {
-    // Grid: 5 columns × 16 rows. Each match spans 2^round rows centered.
+  function BracketTree({ bracket, pickWinner, pickThirdSrc, thirdSources, pickThird }) {
     return (
       <div className="bracket-tree" style={{ gridTemplateRows: 'repeat(16, 92px)' }}>
         {ROUNDS.map((rd, rdi) => {
           const span = Math.pow(2, rdi);
           return Array.from({ length: rd.matches }).map((_, mi) => {
+            const rawSlots = rd.key === 'r32' ? R32_SEED[mi] : null;
             const sources = matchSources(bracket, rd.key, mi);
             const teams = sources.map(c => c ? window.WC_DATA.byCode[c] : null);
             const winnerCode = rd.key === 'final'
@@ -207,24 +240,20 @@
             return (
               <MatchBox
                 key={`${rd.key}-${mi}`}
-                rd={rd}
-                idx={mi}
+                rd={rd} idx={mi}
                 teams={teams}
+                rawSlots={rawSlots}
+                bracket={bracket}
                 winnerCode={winnerCode}
                 onPick={(code) => pickWinner(rd.key, mi, code)}
-                style={{
-                  gridColumn: rdi + 1,
-                  gridRow: `${rowStart} / span ${span}`,
-                }}
+                onPickThirdSrc={pickThirdSrc}
+                style={{ gridColumn: rdi + 1, gridRow: `${rowStart} / span ${span}` }}
               />
             );
           });
         })}
-        {/* Third-place playoff after the final column */}
         <ThirdPlace
-          bracket={bracket}
-          sources={thirdSources}
-          onPick={pickThird}
+          bracket={bracket} sources={thirdSources} onPick={pickThird}
           style={{ gridColumn: 5, gridRow: '14 / span 2', marginTop: 20 }}
         />
         <RoundLabels />
@@ -245,28 +274,70 @@
     );
   }
 
-  function MatchBox({ rd, idx, teams, winnerCode, onPick, style }) {
+  function MatchBox({ rd, idx, teams, rawSlots, bracket, winnerCode, onPick, onPickThirdSrc, style }) {
     const isFinal = rd.key === 'final';
+    const mNum = FIFA_MATCH_NUMS[rd.key]?.[idx] ?? '?';
+
     return (
       <div className={`match ${rd.key} ${isFinal ? 'final' : ''} ${winnerCode ? 'set' : ''}`} style={style}>
         <div className="mh">
-          <span>{rd.label.split('-')[0]} · {idx + 1}</span>
+          <span className="mono" style={{ fontSize: 10, fontWeight: 600 }}>M{mNum}</span>
           {winnerCode && <span style={{ color: 'var(--accent)' }}>● set</span>}
         </div>
         {teams.map((t, i) => {
+          const rawSlot = rawSlots?.[i];
+          const isThirdSlot = rawSlot?.kind === 'third';
+          const srcPicked = isThirdSlot ? (bracket.knockout.thirdSrc?.[rawSlot.slotIdx] || null) : null;
+
+          if (isThirdSlot && !srcPicked) {
+            return (
+              <ThirdSrcPicker key={i} slotIdx={rawSlot.slotIdx} eligible={rawSlot.eligible}
+                bracket={bracket} onPick={onPickThirdSrc} />
+            );
+          }
+
           const code = t?.code;
           const picked = code && code === winnerCode;
           const tbd = !t;
           return (
-            <div key={i}
-              className={`slot-row ${tbd ? 'tbd' : ''} ${picked ? 'picked' : ''}`}
+            <div key={i} className={`slot-row ${tbd ? 'tbd' : ''} ${picked ? 'picked' : ''}`}
               onClick={() => !tbd && onPick(code)}>
               <Flag team={t} w={isFinal ? 24 : 18} h={isFinal ? 16 : 12} />
               <span className="nm">{t ? t.name : '— TBD —'}</span>
               <span className="code">{t ? t.code : ''}</span>
+              {isThirdSlot && srcPicked && (
+                <span className="third-src-tag"
+                  title={`3rd from Group ${srcPicked} — click to change`}
+                  onClick={e => { e.stopPropagation(); onPickThirdSrc(rawSlot.slotIdx, null); }}>
+                  3{srcPicked} ×
+                </span>
+              )}
             </div>
           );
         })}
+      </div>
+    );
+  }
+
+  function ThirdSrcPicker({ slotIdx, eligible, bracket, onPick }) {
+    return (
+      <div className="slot-row third-src-row">
+        <span className="third-src-lbl">3rd place from:</span>
+        <div className="third-src-opts">
+          {eligible.map(letter => {
+            const g = bracket.groups.find(x => x.letter === letter);
+            const teamCode = g?.picks[2];
+            const team = teamCode ? window.WC_DATA.byCode[teamCode] : null;
+            return (
+              <button key={letter} className="third-src-opt" disabled={!teamCode}
+                title={team ? `${team.name} (3rd in Group ${letter})` : `Group ${letter} 3rd not picked yet`}
+                onClick={e => { e.stopPropagation(); onPick(slotIdx, letter); }}>
+                {team && <Flag team={team} w={13} h={9} />}
+                <span>3{letter}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -279,7 +350,7 @@
         <div className="lbl" style={{ textAlign: 'center', marginBottom: 6 }}>3rd-place playoff</div>
         <div className="match set" style={{ borderColor: 'var(--line-2)' }}>
           <div className="mh">
-            <span>Bronze final</span>
+            <span className="mono" style={{ fontSize: 10, fontWeight: 600 }}>M103</span>
             {pick && <span style={{ color: 'var(--gold)' }}>● set</span>}
           </div>
           {teams.map((t, i) => (

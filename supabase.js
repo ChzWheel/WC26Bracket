@@ -68,7 +68,7 @@
         user_id: userId,
         name,
         groups,
-        knockout: { r32: {}, r16: {}, qf: {}, sf: {}, third: null, final: null },
+        knockout: { r32: {}, r16: {}, qf: {}, sf: {}, thirdSrc: Array(8).fill(null), third: null, final: null },
         step: 0,
         done: false,
       }).select().single();
@@ -97,6 +97,14 @@
         .single();
       if (error) throw error;
       return data;
+    },
+
+    async getAllForPool(poolId) {
+      const { data, error } = await sb.from('brackets')
+        .select('user_id, knockout')
+        .eq('submitted_to', poolId);
+      if (error) throw error;
+      return data || [];
     },
   };
 
@@ -167,6 +175,15 @@
         .select('*').order('kickoff', { ascending: true });
       if (error) throw error;
       return data;
+    },
+
+    async getKnockoutResults() {
+      const { data, error } = await sb.from('matches')
+        .select('stage, home_code, away_code, home_score, away_score')
+        .in('stage', ['r32', 'r16', 'qf', 'sf', 'third'])
+        .eq('status', 'ft');
+      if (error) throw error;
+      return data || [];
     },
   };
 

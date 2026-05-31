@@ -1,10 +1,61 @@
 // Pool detail — leaderboard + member picks + invite code.
 
+const KO_STAGES = [
+  { key: 'r32', reward: 10, count: 16 },
+  { key: 'r16', reward: 20, count: 8  },
+  { key: 'qf',  reward: 40, count: 4  },
+  { key: 'sf',  reward: 80, count: 2  },
+];
+
+// Returns max additional points a bracket can still earn given current eliminations.
+// knockedOut = teams eliminated in r32/r16/qf/3rd-place (fully out).
+// sfLosers   = teams that lost in SF (can still play 3rd place, not the final).
+function calcRemaining(knockout, knockedOut, sfLosers) {
+  if (!knockout) return null;
+  let pts = 0;
+  for (const { key, reward, count } of KO_STAGES) {
+    const picks = knockout[key] || {};
+    for (let i = 0; i < count; i++) {
+      const t = picks[i];
+      if (t && !knockedOut.has(t) && !sfLosers.has(t)) pts += reward;
+    }
+  }
+  if (knockout.final && !knockedOut.has(knockout.final) && !sfLosers.has(knockout.final)) pts += 160;
+  if (knockout.third && !knockedOut.has(knockout.third)) pts += 40;
+  return pts;
+}
+
 function PoolDetail({ pool, user, state, dispatch, nav }) {
   const [tab, setTab] = useState('leaderboard');
   const [copied, setCopied] = useState(false);
-  const [viewing, setViewing] = useState(null);   // { bracket, name } | null
-  const [fetchingFor, setFetchingFor] = useState(null); // userId being loaded
+  const [viewing, setViewing] = useState(null);
+  const [fetchingFor, setFetchingFor] = useState(null);
+  const [poolBrackets, setPoolBrackets] = useState({});  // { userId: knockout }
+  const [knockedOut, setKnockedOut] = useState(new Set());
+  const [sfLosers, setSfLosers] = useState(new Set());
+
+  useEffect(() => {
+    if (!pool?.id) return;
+    Promise.all([
+      window.SB.Brackets.getAllForPool(pool.id),
+      window.SB.Matches.getKnockoutResults(),
+    ]).then(([brackets, results]) => {
+      const map = {};
+      for (const b of brackets) map[b.user_id] = b.knockout;
+      setPoolBrackets(map);
+
+      const out = new Set();
+      const sf  = new Set();
+      for (const m of results) {
+        if (m.home_score == null || m.away_score == null || m.home_score === m.away_score) continue;
+        const loser = m.home_score > m.away_score ? m.away_code : m.home_code;
+        if (['r32', 'r16', 'qf', 'third'].includes(m.stage)) out.add(loser);
+        else if (m.stage === 'sf') sf.add(loser);
+      }
+      setKnockedOut(out);
+      setSfLosers(sf);
+    }).catch(console.error);
+  }, [pool?.id]);
 
   if (!pool) {
     return (
@@ -19,6 +70,13 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
   const myRank = myEntry ? sorted.indexOf(myEntry) + 1 : null;
   const leader = sorted[0];
   const submittedBrackets = state.brackets.filter(b => b.submittedTo === pool.id);
+
+  const getMaxPts = (member) => {
+    const ko = member.you ? submittedBrackets[0]?.knockout : poolBrackets[member.id];
+    const rem = calcRemaining(ko, knockedOut, sfLosers);
+    if (rem === null) return null;
+    return { max: member.score + rem, rem };
+  };
 
   const copyCode = () => {
     navigator.clipboard?.writeText(pool.code).catch(() => {});
@@ -106,6 +164,7 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
                 <th style={{ width: 120 }}>Champion pick</th>
                 <th style={{ width: 80, textAlign: 'right' }}>Correct</th>
                 <th style={{ width: 80, textAlign: 'right' }}>Points</th>
+                <th style={{ width: 90, textAlign: 'right' }}>Max pts</th>
               </tr>
             </thead>
             <tbody>
@@ -138,6 +197,18 @@ function PoolDetail({ pool, user, state, dispatch, nav }) {
                     </td>
                     <td className="pts muted">{correct}/64</td>
                     <td className="pts">{m.score || 0}</td>
+                    <td className="pts" style={{ textAlign: 'right' }}>
+                      {(() => {
+                        const mp = getMaxPts(m);
+                        if (!mp) return <span className="muted">—</span>;
+                        return (
+                          <div>
+                            <div>{mp.max}</div>
+                            <div className="muted mono" style={{ fontSize: 10 }}>+{mp.rem} left</div>
+                          </div>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 );
               })}

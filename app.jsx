@@ -6,23 +6,159 @@ const { useState, useEffect, useReducer, useRef, useMemo, useCallback } = React;
 document.documentElement.dataset.theme = 'light';
 document.documentElement.dataset.font  = 'geist';
 
-// ── Loading spinner ───────────────────────────────────────
+// ── Globe loader ──────────────────────────────────────────
 function Spinner({ message = 'Loading…' }) {
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof d3 === 'undefined' || typeof topojson === 'undefined') return;
+
+    const svgNS      = "http://www.w3.org/2000/svg";
+    const svgEl      = root.querySelector('.gl-main-svg');
+    const earthLayer = root.querySelector('.gl-earth-layer');
+    const ballLayer  = root.querySelector('.gl-ball-layer');
+    const landLayer  = root.querySelector('.gl-land-layer');
+    const gratLayer  = root.querySelector('.gl-grat-layer');
+    const sparkleGroup = root.querySelector('.gl-sparkle-group');
+
+    let rafId, cancelled = false;
+
+    (async () => {
+      const projection = d3.geoOrthographic()
+        .scale(92).translate([100, 100]).clipAngle(90).rotate([0, -18, 0]);
+      const path = d3.geoPath(projection);
+
+      const graticule = d3.geoGraticule10();
+      const gratEl = document.createElementNS(svgNS, "path");
+      gratEl.setAttribute("class", "globe-graticule");
+      gratLayer.appendChild(gratEl);
+
+      let land;
+      try {
+        const world = await fetch("https://unpkg.com/world-atlas@2.0.2/countries-110m.json").then(r => r.json());
+        land = topojson.feature(world, world.objects.countries);
+      } catch (e) { return; }
+      if (cancelled) return;
+
+      const countryPaths = land.features.map(f => {
+        const p = document.createElementNS(svgNS, "path");
+        p.setAttribute("class", "globe-land");
+        landLayer.appendChild(p);
+        return { feature: f, el: p };
+      });
+
+      const D2R = Math.PI / 180, R2D = 180 / Math.PI;
+      const toV   = (lng, lat) => { const f=lat*D2R,l=lng*D2R; return [Math.cos(f)*Math.cos(l),Math.cos(f)*Math.sin(l),Math.sin(f)]; };
+      const toLL  = v => [Math.atan2(v[1],v[0])*R2D, Math.asin(Math.max(-1,Math.min(1,v[2])))*R2D];
+      const norm  = v => { const m=Math.hypot(v[0],v[1],v[2]); return [v[0]/m,v[1]/m,v[2]/m]; };
+      const slerp = (a,b,t) => {
+        let d=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2]));
+        const w=Math.acos(d); if(w<1e-6) return a.slice();
+        const s=Math.sin(w),k0=Math.sin((1-t)*w)/s,k1=Math.sin(t*w)/s;
+        return [a[0]*k0+b[0]*k1,a[1]*k0+b[1]*k1,a[2]*k0+b[2]*k1];
+      };
+      const dest = (lng,lat,brg,dist) => {
+        const f=lat*D2R,l=lng*D2R,th=brg*D2R,dl=dist*D2R;
+        const C=toV(lng,lat),E=norm([-Math.sin(l),Math.cos(l),0]);
+        const N=[-Math.sin(f)*Math.cos(l),-Math.sin(f)*Math.sin(l),Math.cos(f)];
+        const dir=[Math.cos(th)*N[0]+Math.sin(th)*E[0],Math.cos(th)*N[1]+Math.sin(th)*E[1],Math.cos(th)*N[2]+Math.sin(th)*E[2]];
+        return [C[0]*Math.cos(dl)+dir[0]*Math.sin(dl),C[1]*Math.cos(dl)+dir[1]*Math.sin(dl),C[2]*Math.cos(dl)+dir[2]*Math.sin(dl)];
+      };
+      const RADIUS = 22;
+      function pentagon(cLng, cLat, orient) {
+        const verts = [];
+        for (let k=0;k<5;k++) {
+          const th=orient+k*72;
+          if(cLat>89.99) verts.push(toV(th,90-RADIUS));
+          else if(cLat<-89.99) verts.push(toV(th,-90+RADIUS));
+          else verts.push(dest(cLng,cLat,th,RADIUS));
+        }
+        const ring=[],SEG=8;
+        for(let i=0;i<5;i++){const a=verts[i],b=verts[(i+1)%5];for(let s=0;s<SEG;s++) ring.push(toLL(norm(slerp(a,b,s/SEG))));}
+        ring.push(ring[0]);
+        const feat={type:"Feature",geometry:{type:"Polygon",coordinates:[ring]}};
+        if(d3.geoArea(feat)>2*Math.PI) ring.reverse();
+        return feat;
+      }
+      const UP=R2D*Math.atan(0.5);
+      const centres=[{lng:0,lat:90,o:0},{lng:0,lat:-90,o:36}];
+      for(let i=0;i<5;i++){centres.push({lng:i*72,lat:UP,o:0});centres.push({lng:36+i*72,lat:-UP,o:180});}
+      const ballPaths = centres.map(c => {
+        const p=document.createElementNS(svgNS,"path");p.setAttribute("class","ball-pentagon");ballLayer.appendChild(p);return{feature:pentagon(c.lng,c.lat,c.o),el:p};
+      });
+
+      const REV=360,spinDur=1.55,hold=0.16,morph=0.34;
+      const tl=[
+        {dur:spinDur,rot:REV,surf:"earth"},{dur:hold,rot:0,surf:"earth"},
+        {dur:morph,rot:0,from:"earth",to:"ball"},{dur:hold,rot:0,surf:"ball"},
+        {dur:spinDur,rot:REV,surf:"ball"},{dur:hold,rot:0,surf:"ball"},
+        {dur:morph,rot:0,from:"ball",to:"earth"},{dur:hold,rot:0,surf:"earth"}
+      ];
+      const total=tl.reduce((s,seg)=>s+seg.dur,0);
+      const starts=[];let acc=0,rotAcc=0;
+      for(const seg of tl){starts.push({t:acc,rot:rotAcc});acc+=seg.dur;rotAcc+=seg.rot;}
+      const easeRot=p=>(p<0.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2);
+      const smooth=p=>p*p*(3-2*p);
+
+      const sparkleD=(cx,cy,r)=>{const i=r*0.16;return `M${cx},${cy-r}L${cx+i},${cy-i}L${cx+r},${cy}L${cx+i},${cy+i}L${cx},${cy+r}L${cx-i},${cy+i}L${cx-r},${cy}L${cx-i},${cy-i}Z`;};
+      const SPARKLES=11,sparklePool=[];
+      const rand=(a,b)=>a+Math.random()*(b-a);
+      for(let k=0;k<SPARKLES;k++){const el=document.createElementNS(svgNS,"path");el.setAttribute("class","sparkle");sparkleGroup.appendChild(el);sparklePool.push(el);}
+      function sparkleBurst(){
+        for(let k=0;k<SPARKLES;k++){
+          const el=sparklePool[k];
+          const ang=(k/SPARKLES)*2*Math.PI+rand(-0.35,0.35),dist=rand(102,126);
+          const cx=100+Math.cos(ang)*dist,cy=100+Math.sin(ang)*dist,r=rand(3.5,8);
+          el.setAttribute("d",sparkleD(cx,cy,r));
+          el.animate([{offset:0,opacity:0},{offset:0.2,opacity:1},{offset:0.6,opacity:1},{offset:1,opacity:0}],{duration:rand(950,1300),delay:rand(0,200),easing:"ease-in-out",fill:"forwards"});
+        }
+      }
+
+      let prevIdx=-1;
+      const t0=performance.now();
+      function frame(now){
+        if(cancelled) return;
+        const tt=((now-t0)/1000)%total;
+        let idx=0;for(let i=0;i<tl.length;i++) if(tt>=starts[i].t) idx=i;
+        const seg=tl[idx],local=(tt-starts[idx].t)/seg.dur;
+        if(idx!==prevIdx){prevIdx=idx;if(seg.from) sparkleBurst();}
+        const lambda=starts[idx].rot+seg.rot*easeRot(Math.min(1,local));
+        projection.rotate([lambda,-18,0]);
+        let eOp,bOp,scale=1;
+        if(seg.from){const p=smooth(local);eOp=seg.from==="earth"?1-p:p;bOp=seg.from==="ball"?1-p:p;scale=1+0.085*Math.sin(Math.PI*local);}
+        else{eOp=seg.surf==="earth"?1:0;bOp=seg.surf==="ball"?1:0;}
+        earthLayer.style.opacity=eOp;
+        ballLayer.style.opacity=bOp;
+        svgEl.style.transform=scale===1?"":`scale(${scale})`;
+        if(eOp>0.001){gratEl.setAttribute("d",path(graticule)||"");for(const{feature,el}of countryPaths)el.setAttribute("d",path(feature)||"");}
+        if(bOp>0.001){for(const{feature,el}of ballPaths)el.setAttribute("d",path(feature)||"");}
+        rafId=requestAnimationFrame(frame);
+      }
+      rafId=requestAnimationFrame(frame);
+    })();
+
+    return () => { cancelled=true; if(rafId) cancelAnimationFrame(rafId); };
+  }, []);
+
   return (
-    <div style={{
-      minHeight: '100vh', display: 'grid', placeItems: 'center',
-      background: 'var(--bg)',
-    }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{
-          fontSize: 44,
-          animation: 'spin 1s linear infinite',
-          display: 'inline-block',
-          margin: '0 auto 12px',
-        }}>⚽</div>
-        <div className="muted mono" style={{ fontSize: 12 }}>{message}</div>
+        <div className="globe-loader" ref={rootRef} aria-label="Loading" role="status">
+          <svg className="sparkle-layer" viewBox="0 0 200 200" aria-hidden="true">
+            <g className="gl-sparkle-group"></g>
+          </svg>
+          <svg className="gl-main-svg" viewBox="0 0 200 200" aria-hidden="true">
+            <circle className="globe-sphere" cx="100" cy="100" r="92"></circle>
+            <g className="gl-earth-layer">
+              <g className="gl-grat-layer"></g>
+              <g className="gl-land-layer"></g>
+            </g>
+            <g className="gl-ball-layer"></g>
+          </svg>
+        </div>
+        <div className="muted mono" style={{ fontSize: 12, marginTop: 16 }}>{message}</div>
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -37,14 +173,22 @@ function App() {
   const [route, setRoute]       = useState({ screen: 'dashboard' });
   const [loading, setLoading]   = useState(true);
 
-  useEffect(() => { window.__nav = setRoute; }, []);
+  useEffect(() => {
+    window.history.replaceState({ screen: 'dashboard' }, '');
+    window.__nav = (r) => { window.history.pushState(r, ''); setRoute(r); };
+    const onPop = (e) => setRoute(e.state || { screen: 'dashboard' });
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // ── Auth listener ─────────────────────────────────────
   useEffect(() => {
     const { data: { subscription } } = window.SB.Auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setAuthUser(session.user);
-        await loadUserData(session.user);
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          await loadUserData(session.user);
+        }
       } else {
         setAuthUser(null);
         setProfile(null);
@@ -217,7 +361,21 @@ function App() {
     }
   }, [brackets, authUser]);
 
-  const nav = (r) => setRoute(r);
+  const nav = (r) => {
+    window.history.pushState(r, '');
+    window.scrollTo(0, 0);
+    const titles = {
+      'dashboard':   'Dashboard',
+      'group-stage': 'Group Stage',
+      'knockout':    'Knockout',
+      'summary':     'Review & Submit',
+      'pool':        'Pool',
+      'schedule':    'Schedule',
+      'admin':       'Admin',
+    };
+    document.title = `${titles[r.screen] || 'Brackt'} · Brackt WC '26`;
+    setRoute(r);
+  };
 
   // ── Render ────────────────────────────────────────────
   if (authUser === undefined || loading) return <Spinner message="Loading Brackt…" />;
