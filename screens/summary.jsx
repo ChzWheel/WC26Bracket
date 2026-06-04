@@ -45,7 +45,9 @@ function Summary({ bracket, dispatch, nav, state }) {
     <div className="main fade-in">
       <div className="page-head">
         <div>
-          <div className="eyebrow">{bracket.name} · Step 3 of 3</div>
+          <div className="eyebrow">
+            {bracket.name}{bracket.guestName ? ` · for ${bracket.guestName}` : ''} · Step 3 of 3
+          </div>
           <h1 className="page-title">Review & submit</h1>
           <div className="subtitle">
             {Date.now() >= GROUP_LOCK_TS_S

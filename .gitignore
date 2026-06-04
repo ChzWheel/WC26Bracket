@@ -1,0 +1,12 @@
+# Secret keys — config.js is generated at deploy time:
+#  - GitHub Pages (test branch): .github/workflows/deploy-pages.yml builds it from repo secrets
+#  - Netlify (master branch): generate-config.js builds it from Netlify env vars
+config.js
+
+# Local tooling
+.claude/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+node_modules/

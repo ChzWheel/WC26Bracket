@@ -3,6 +3,7 @@
 function BracketList({ state, dispatch, nav }) {
   const [modal, setModal]           = useState(false);
   const [bracketName, setBracketName] = useState('');
+  const [guestName, setGuestName]   = useState('');
   const [busy, setBusy]             = useState(false);
   const [err, setErr]               = useState('');
   const [deleting, setDeleting]     = useState(null);
@@ -20,11 +21,14 @@ function BracketList({ state, dispatch, nav }) {
       const id = await new Promise((resolve, reject) => {
         dispatch({
           type: 'ADD_BRACKET',
-          bracket: { name: bracketName.trim() || `My Bracket ${brackets.length + 1}` },
+          bracket: {
+            name: bracketName.trim() || `My Bracket ${brackets.length + 1}`,
+            guestName: guestName.trim() || null,
+          },
           _resolve: (b) => resolve(b.id),
         }).catch(reject);
       });
-      setModal(false); setBracketName('');
+      setModal(false); setBracketName(''); setGuestName('');
       nav({ screen: 'group-stage', bracketId: id });
     } catch (e) {
       setErr(e.message);
@@ -40,10 +44,11 @@ function BracketList({ state, dispatch, nav }) {
           <div className="eyebrow">Brackets</div>
           <h1 className="page-title">My Brackets</h1>
           <div className="subtitle">
-            Build up to 5 brackets and submit each to a pool.
+            Build up to 10 brackets — including guest brackets for friends and family
+            without accounts — and submit them to pools.
           </div>
         </div>
-        {brackets.length < 5 && (
+        {brackets.length < 10 && (
           <button className="btn accent" onClick={() => setModal(true)}>
             + New bracket
           </button>
@@ -68,13 +73,13 @@ function BracketList({ state, dispatch, nav }) {
               onDelete={() => setDeleting(b)}
             />
           ))}
-          {brackets.length < 5 && (
+          {brackets.length < 10 && (
             <button className="bracket-card new" onClick={() => setModal(true)}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 24, fontWeight: 300, marginBottom: 4 }}>+</div>
                 <div style={{ fontSize: 13 }}>New bracket</div>
                 <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>
-                  Up to 5 per account
+                  Up to 10 per account — incl. guest brackets
                 </div>
               </div>
             </button>
@@ -85,7 +90,7 @@ function BracketList({ state, dispatch, nav }) {
       {modal && (
         <Modal title="Create a new bracket"
           body="Pick group stage outcomes, then build the knockout tree."
-          onClose={() => { setModal(false); setErr(''); }}>
+          onClose={() => { setModal(false); setErr(''); setGuestName(''); }}>
           {err && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
           <label className="field">
             <span className="lbl">Bracket name</span>
@@ -94,8 +99,18 @@ function BracketList({ state, dispatch, nav }) {
               placeholder={`My Bracket ${brackets.length + 1}`}
               onKeyDown={(e) => e.key === 'Enter' && createBracket()} />
           </label>
+          <label className="field">
+            <span className="lbl">For someone else? (optional)</span>
+            <input className="input" value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="e.g. Grandma — no account needed"
+              onKeyDown={(e) => e.key === 'Enter' && createBracket()} />
+            <span className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              Their name shows as the bracket's owner on pool leaderboards. You manage their picks.
+            </span>
+          </label>
           <div className="actions">
-            <button className="btn ghost" onClick={() => { setModal(false); setErr(''); }}>Cancel</button>
+            <button className="btn ghost" onClick={() => { setModal(false); setErr(''); setGuestName(''); }}>Cancel</button>
             <button className="btn primary" onClick={createBracket} disabled={busy}>
               {busy ? 'Creating…' : 'Create bracket →'}
             </button>

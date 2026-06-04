@@ -39,14 +39,24 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- ── Brackets ─────────────────────────────────────────────────
+-- user_id references profiles (not auth.users) so PostgREST can embed the
+-- owner profile: .select('*, profiles(name, avatar)'). Profiles cascade from
+-- auth.users, so deletion behavior is the same.
+-- guest_name: set when an account holder manages this bracket for someone
+-- without an account — displayed as the bracket's owner.
+-- score/correct: per-bracket scoring (one user can have several scored
+-- entries in a pool). pool_members.score is deprecated.
 create table if not exists public.brackets (
   id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
   name        text not null default 'My Bracket',
+  guest_name  text,
   groups      jsonb not null default '[]',
   knockout    jsonb not null default '{"r32":{},"r16":{},"qf":{},"sf":{},"third":null,"final":null}',
   step        int not null default 0,
   done        boolean not null default false,
+  score       int not null default 0,
+  correct     int not null default 0,
   submitted_to uuid,
   submitted_at timestamptz,
   created_at  timestamptz default now(),

@@ -4,6 +4,7 @@
 function Dashboard({ user, state, dispatch, nav }) {
   const [modal, setModal]               = useState(null);
   const [bracketName, setBracketName]   = useState('');
+  const [guestName, setGuestName]       = useState('');
   const [poolName, setPoolName]         = useState('');
   const [poolCode, setPoolCode]         = useState('');
   const [busy, setBusy]                 = useState(false);
@@ -19,11 +20,14 @@ function Dashboard({ user, state, dispatch, nav }) {
       const id = await new Promise((resolve, reject) => {
         dispatch({
           type: 'ADD_BRACKET',
-          bracket: { name: bracketName || `My Bracket ${myBrackets.length + 1}` },
+          bracket: {
+            name: bracketName || `My Bracket ${myBrackets.length + 1}`,
+            guestName: guestName.trim() || null,
+          },
           _resolve: (b) => resolve(b.id),
         }).catch(reject);
       });
-      setModal(null); setBracketName('');
+      setModal(null); setBracketName(''); setGuestName('');
       nav({ screen: 'group-stage', bracketId: id });
     } catch (e) {
       setErr(e.message);
@@ -72,14 +76,11 @@ function Dashboard({ user, state, dispatch, nav }) {
   };
 
   const totalCompleted = myBrackets.filter(b => b.done).length;
-  const totalPoints    = myPools.reduce((s, p) =>
-    s + (p.members.find(m => m.you)?.score || 0), 0);
-  const bestRank = myPools.length ? Math.min(...myPools.map(p => {
-    const sorted = [...p.members].sort((a, b) => b.score - a.score);
-    return sorted.findIndex(m => m.you) + 1;
-  })) : null;
+  // Scores live on brackets now (one user can have several scored entries).
+  const totalPoints  = myBrackets.reduce((s, b) => s + (b.score || 0), 0);
+  const guestCount   = myBrackets.filter(b => b.guestName).length;
 
-  const closeModal = () => { setModal(null); setErr(''); };
+  const closeModal = () => { setModal(null); setErr(''); setGuestName(''); };
 
   return (
     <div className="main fade-in">
@@ -102,8 +103,8 @@ function Dashboard({ user, state, dispatch, nav }) {
       <div className="kpis">
         <Kpi k="Brackets"    v={String(myBrackets.length)} d={`${totalCompleted} submitted`} />
         <Kpi k="Pools"       v={String(myPools.length)}    d="active" />
-        <Kpi k="Total points" v={String(totalPoints)}      d="across all pools" />
-        <Kpi k="Best rank"   v={bestRank ? `#${bestRank}` : '—'} d={bestRank ? 'this season' : 'join a pool'} />
+        <Kpi k="Total points" v={String(totalPoints)}      d="across all brackets" />
+        <Kpi k="Guest brackets" v={String(guestCount)} d={guestCount ? 'you manage' : 'for friends without accounts'} />
       </div>
 
       <div className="section-head">
@@ -122,7 +123,7 @@ function Dashboard({ user, state, dispatch, nav }) {
             <div style={{ fontSize: 24, fontWeight: 300, marginBottom: 4 }}>+</div>
             <div style={{ fontSize: 13 }}>New bracket</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>
-              Up to 5 per account
+              Up to 10 per account — incl. guest brackets
             </div>
           </div>
         </button>
@@ -149,9 +150,8 @@ function Dashboard({ user, state, dispatch, nav }) {
       ) : (
         <div className="pool-grid">
           {myPools.map(p => {
-            const sorted = [...p.members].sort((a, b) => b.score - a.score);
-            const my      = sorted.findIndex(m => m.you) + 1;
-            const myScore = sorted.find(m => m.you)?.score || 0;
+            const mine    = myBrackets.filter(b => b.submittedTo === p.id);
+            const myBest  = mine.length ? Math.max(...mine.map(b => b.score || 0)) : 0;
             return (
               <div key={p.id} className="pool-row" onClick={() => nav({ screen: 'pool', poolId: p.id })}>
                 <div className="badge">{p.name.slice(0, 2).toUpperCase()}</div>
@@ -160,14 +160,14 @@ function Dashboard({ user, state, dispatch, nav }) {
                   <div className="psub">{p.members.length} members · code {p.code}</div>
                 </div>
                 <div>
-                  <div className="prank">RANK</div>
+                  <div className="prank">YOUR BRACKETS</div>
                   <div className="num" style={{ fontSize: 14, fontWeight: 600, textAlign: 'right' }}>
-                    #{my} <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>/ {p.members.length}</span>
+                    {mine.length}
                   </div>
                 </div>
                 <div>
-                  <div className="prank">POINTS</div>
-                  <div className="pscore">{myScore}</div>
+                  <div className="prank">BEST PTS</div>
+                  <div className="pscore">{myBest}</div>
                 </div>
               </div>
             );
@@ -187,6 +187,16 @@ function Dashboard({ user, state, dispatch, nav }) {
               onChange={(e) => setBracketName(e.target.value)}
               placeholder={`My Bracket ${myBrackets.length + 1}`}
               onKeyDown={(e) => e.key === 'Enter' && createBracket()} />
+          </label>
+          <label className="field">
+            <span className="lbl">For someone else? (optional)</span>
+            <input className="input" value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="e.g. Grandma — no account needed"
+              onKeyDown={(e) => e.key === 'Enter' && createBracket()} />
+            <span className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              Their name shows as the bracket's owner on pool leaderboards. You manage their picks.
+            </span>
           </label>
           <div className="actions">
             <button className="btn ghost" onClick={closeModal}>Cancel</button>
@@ -293,6 +303,7 @@ function BracketCard({ b, onClick, onDelete }) {
         <div>
           <div className="nm">{b.name}</div>
           <div className="meta">
+            {b.guestName && <>For <strong>{b.guestName}</strong> · </>}
             {b.done ? 'Submitted' : `${pct}% complete`} · {fmtDate(b.createdAt)}
           </div>
         </div>

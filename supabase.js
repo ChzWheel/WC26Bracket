@@ -63,10 +63,13 @@
       return data;
     },
 
-    async create(userId, name, groups) {
+    // guestName: optional display owner for brackets managed on behalf of
+    // someone without an account (e.g. "Grandma").
+    async create(userId, name, groups, guestName = null) {
       const { data, error } = await sb.from('brackets').insert({
         user_id: userId,
         name,
+        guest_name: guestName,
         groups,
         knockout: { r32: {}, r16: {}, qf: {}, sf: {}, thirdQualifiers: [], third: null, final: null },
         step: 0,
@@ -89,20 +92,14 @@
       if (error) throw error;
     },
 
-    async getByUserInPool(userId, poolId) {
-      const { data, error } = await sb.from('brackets')
-        .select('groups, knockout')
-        .eq('user_id', userId)
-        .eq('submitted_to', poolId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-
+    // All brackets submitted to a pool — one leaderboard entry each.
+    // Embeds the owner's profile (requires brackets.user_id → profiles FK,
+    // see migration-guest-brackets.sql).
     async getAllForPool(poolId) {
       const { data, error } = await sb.from('brackets')
-        .select('user_id, knockout')
-        .eq('submitted_to', poolId);
+        .select('id, user_id, name, guest_name, score, correct, groups, knockout, submitted_at, profiles(name, avatar)')
+        .eq('submitted_to', poolId)
+        .order('submitted_at', { ascending: true });
       if (error) throw error;
       return data || [];
     },

@@ -233,6 +233,9 @@ function App() {
     return {
       id:          row.id,
       name:        row.name,
+      guestName:   row.guest_name || null,
+      score:       row.score   || 0,
+      correct:     row.correct || 0,
       createdAt:   new Date(row.created_at).getTime(),
       groups:      row.groups,
       knockout:    row.knockout,
@@ -263,11 +266,11 @@ function App() {
 
   // ── Bracket mutations ─────────────────────────────────
   const bracketOps = {
-    async add(name) {
+    async add(name, guestName) {
       const groups = window.WC_DATA.buildSeededGroups().map(g => ({
         ...g, picks: [null, null, null, null],
       }));
-      const row = await window.SB.Brackets.create(authUser.id, name, groups);
+      const row = await window.SB.Brackets.create(authUser.id, name, groups, guestName || null);
       const b = normalizeBracket(row);
       setBrackets(prev => [...prev, b]);
       return b;
@@ -275,6 +278,9 @@ function App() {
 
     async update(id, patch) {
       const dbPatch = {};
+      // Note: score/correct are intentionally NOT writable from the client —
+      // they're computed server-side so a stale local copy can't clobber them.
+      if ('guestName'   in patch) dbPatch.guest_name    = patch.guestName;
       if ('groups'      in patch) dbPatch.groups       = patch.groups;
       if ('knockout'    in patch) dbPatch.knockout      = patch.knockout;
       if ('step'        in patch) dbPatch.step          = patch.step;
@@ -340,7 +346,7 @@ function App() {
     try {
       switch (action.type) {
         case 'ADD_BRACKET': {
-          const b = await bracketOps.add(action.bracket.name);
+          const b = await bracketOps.add(action.bracket.name, action.bracket.guestName);
           action._resolve?.(b);
           break;
         }

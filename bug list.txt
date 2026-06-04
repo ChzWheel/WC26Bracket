@@ -1,0 +1,6 @@
+1. Once you've built a bracket, the Brackets page doesn't really have anywhere to go. It just kind of lets you edit your last bracket in the "Review and Submit" page. Need alternatives here.
+2. I've deleted multiple pools now, yet they continue to show up when I reload the website.
+3. When viewing member picks, the flag icon for the picked champion is not always reading what that user actually picked for champion. Could be a result of users changing which bracket they submit to a pool.
+4. The locked symbol on the brackets doesn't really convey anything to my knowledge. Maybe it just means submitted to a pool. Group portion of bracket should lock midnight of June 11. Knockout portion should lock at noon on June 28.
+5. Add a help menu that describes these bracket lock out times. Explain the reasoning behind it due to FIFA match schedule. Keep it brief enough for users to understand. Bold important dates.
+6. When I went to press Full Sync I got this message "✗ Sync failed: {"plan":"Free plans do not have access to this season, try from 2022 to 2024."}"
