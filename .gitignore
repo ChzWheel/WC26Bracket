@@ -3,6 +3,9 @@
 #  - Netlify (master branch): generate-config.js builds it from Netlify env vars
 config.js
 
+# Design sources dropped in for implementation — local only, never deployed
+designs/
+
 # Local tooling
 .claude/
 

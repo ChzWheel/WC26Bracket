@@ -2,8 +2,11 @@
 
 const { useState, useEffect, useReducer, useRef, useMemo, useCallback } = React;
 
-// Apply default theme/font once on load
-document.documentElement.dataset.theme = 'light';
+// Apply persisted (or default) theme/font once on load.
+// ?theme=retro in the URL deep-links straight into a theme.
+const _qsTheme = new URLSearchParams(location.search).get('theme');
+if (_qsTheme) { try { localStorage.setItem('brackt-theme', _qsTheme); } catch (e) {} }
+document.documentElement.dataset.theme = localStorage.getItem('brackt-theme') || 'light';
 document.documentElement.dataset.font  = 'geist';
 
 // ── Globe loader ──────────────────────────────────────────
@@ -513,9 +516,127 @@ function NotFound({ nav }) {
   );
 }
 
+// ── Coach Buddy — retro pop-up assistant with rotating fun facts ──
+const SOCCER_FACTS = [
+  "Brazil is the only nation to play in every single FIFA World Cup since 1930.",
+  "The fastest goal in World Cup history took just 11 seconds — Hakan Şükür, Turkey, 2002.",
+  "A classic soccer ball has 32 panels: 20 hexagons and 12 pentagons.",
+  "The first World Cup, in 1930, was hosted AND won by Uruguay.",
+  "The 1950 World Cup decider drew nearly 200,000 fans at Brazil's Maracanã.",
+  "Soccer is the world's most popular sport — over 250 million play it.",
+  "No host nation has ever been knocked out in the group stage… until Qatar in 2022.",
+  "The World Cup trophy is solid 18-karat gold and weighs over 6 kg.",
+];
+
+function CoachBuddy() {
+  const [open, setOpen] = useState(true);
+  const [idx, setIdx]   = useState(() => Math.floor(Math.random() * SOCCER_FACTS.length));
+  const [shown, setShown] = useState(false);
+
+  // Slide up shortly after mount via a transition (setTimeout, not rAF —
+  // rAF is suspended in background/offscreen preview frames).
+  useEffect(() => {
+    const id = setTimeout(() => setShown(true), 60);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Auto-rotate to a fresh fact every 60s while open.
+  useEffect(() => {
+    if (!open) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % SOCCER_FACTS.length), 60000);
+    return () => clearInterval(t);
+  }, [open]);
+
+  if (!open) {
+    return (
+      <button className="coach-reopen" title="Ask Coach Buddy" onClick={() => setOpen(true)}>
+        <img src="assets/coach-buddy.png" alt="Coach Buddy" />
+      </button>
+    );
+  }
+
+  return (
+    <div className={`coach-buddy ${shown ? 'in' : ''}`}>
+      <div className="coach-bubble">
+        <button className="coach-close" title="Shoo" onClick={() => setOpen(false)}>✕</button>
+        <div className="coach-fact-label">⚽ Soccer Fun Fact</div>
+        <div className="coach-fact">{SOCCER_FACTS[idx]}</div>
+        <button className="coach-next" onClick={() => setIdx(i => (i + 1) % SOCCER_FACTS.length)}>
+          Tell me another »
+        </button>
+      </div>
+      <img className="coach-char" src="assets/coach-buddy.png" alt="Coach Buddy" />
+    </div>
+  );
+}
+
+// ── Retro ticker — real scores when the matches table has them,
+//    pure-kitsch filler before the tournament produces data. ──
+function RetroTicker() {
+  const [scores, setScores] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.SB.Matches.getByDay('today')
+      .then(ms => {
+        if (cancelled) return;
+        const played = (ms || []).filter(m => m.home_score != null && m.away_score != null);
+        if (!played.length) return;
+        setScores(played.map(m => {
+          const tag = m.status === 'live' ? `(${m.minute ?? '–'}')`
+            : m.status === 'ht' ? 'HT'
+            : m.status === 'ft' ? 'FT' : '';
+          return `${m.home_code} ${m.home_score}-${m.away_score} ${m.away_code} ${tag}`.trim();
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const scoreLine = scores
+    ? scores.join(' \u00A0•••\u00A0 ')
+    : 'pick yer bracket before kickoff!! \u00A0•••\u00A0 sign the guestbook!!1!';
+
+  return (
+    <div className="retro-ticker">
+      <img className="tick-ball" src="assets/soccer.gif" alt="" />
+      <div className="scroller">
+        <b>★ WELCOME TO BRACKT '26 ★ &nbsp;{scoreLine}&nbsp; ••• GO TEAM GO ⚽</b>
+      </div>
+      <span className="fans">Fans since 1998:&nbsp;<span className="odo">0013427</span></span>
+    </div>
+  );
+}
+
 // ── TopBar ────────────────────────────────────────────────
 function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('brackt-theme') || 'light');
+  const menuRef = useRef(null);
+
+  // Apply + persist theme whenever it changes.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('brackt-theme', theme);
+  }, [theme]);
+
+  // Close the profile menu on outside click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    const onKey  = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [menuOpen]);
+
+  const THEMES = [
+    { id: 'light',   label: 'Light' },
+    { id: 'dark',    label: 'Dark' },
+    { id: 'branded', label: 'Night' },
+    { id: 'retro',   label: 'Retro' },
+  ];
 
   const active = (r) => route.screen === r ||
     (r === 'pools'     && route.screen === 'pool') ||
@@ -562,17 +683,48 @@ function TopBar({ user, route, nav, dispatch, pools, brackets, isAdmin }) {
           </button>
         )}
       </nav>
-      <div className="user-chip">
+      <div className="user-chip" ref={menuRef}>
         <button className="help-btn" onClick={() => setHelpOpen(true)} title="Bracket help">?</button>
-        <span className="av">{user.avatar}</span>
-        <span>{user.name}</span>
-        <button className="signout" onClick={() => {
-          if (confirm('Sign out?')) dispatch({ type: 'SIGN_OUT' });
-        }}>
-          Sign out
+        <button className="profile-trigger" onClick={() => setMenuOpen(o => !o)} aria-expanded={menuOpen} aria-haspopup="true">
+          <span className="av">{user.avatar}</span>
+          <span className="profile-name">{user.name}</span>
+          <span className={`chev ${menuOpen ? 'up' : ''}`}>▾</span>
         </button>
+        {menuOpen && (
+          <div className="profile-menu" role="menu">
+            <div className="pm-head">
+              <span className="av lg">{user.avatar}</span>
+              <div className="pm-id">
+                <div className="pm-name">{user.name}</div>
+                <div className="pm-email">{user.email}</div>
+              </div>
+            </div>
+            <div className="pm-section">
+              <div className="pm-label">Theme</div>
+              <div className="theme-seg">
+                {THEMES.map(t => (
+                  <button key={t.id}
+                    className={theme === t.id ? 'active' : ''}
+                    onClick={() => setTheme(t.id)}>
+                    <span className={`theme-dot t-${t.id}`} />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pm-divider" />
+            <button className="pm-item danger" onClick={() => {
+              setMenuOpen(false);
+              if (confirm('Sign out?')) dispatch({ type: 'SIGN_OUT' });
+            }}>
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </header>
+    {theme === 'retro' && <RetroTicker />}
+    {theme === 'retro' && route.screen === 'dashboard' && <CoachBuddy />}
     {helpOpen && (
       <Modal title="Bracket deadlines & scoring" onClose={() => setHelpOpen(false)}>
         <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--fg-2)' }}>

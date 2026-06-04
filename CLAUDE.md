@@ -68,7 +68,12 @@ Dashboard app for friends/family to build WC 2026 brackets and compete in pools.
   `normalizePool` (app.jsx) — follow that pattern for new entities.
 - Styling: use existing CSS variables (`--bg`, `--fg`, `--accent`, `--line`, etc.) and
   utility classes (`card`, `padded`, `btn primary`, `muted`, `mono`, `spread`, `main fade-in`).
-  Colors are oklch. Both light and dark theme blocks in styles.css must be considered.
+  Colors are oklch. **Four themes** via `data-theme` on `<html>`: `light`, `dark`,
+  `branded` ("Night"), and `retro` (Win95/98 kitsch — Jersey 15 font, news ticker,
+  Coach Buddy mascot on dashboard, assets in `assets/`). Theme picker lives in the
+  TopBar profile menu; persisted per device in localStorage; `?theme=x` URL deep-links.
+  New UI must be checked against all four theme blocks in styles.css — the retro block
+  (end of file) overrides many components individually.
 - Flags use the flag-icons CDN library via the `Flag` component (`team.iso` codes).
 - Hooks are destructured from the global `React` at the top of files that need them.
 - Errors in dispatch surface via `alert()`; screens use local `err` state for form errors.
@@ -101,7 +106,8 @@ Dashboard app for friends/family to build WC 2026 brackets and compete in pools.
   against re-fetch loops. Don't remove it.
 - Pool deletion has had RLS-related bugs (stale pools reappearing on reload) — verify
   RLS policies in schema.sql when touching pools.
-- No localStorage for app state; everything persists to Supabase.
+- No localStorage for app state; everything persists to Supabase. One exception:
+  the theme preference (`brackt-theme` key) is a device-local UI setting.
 - Babel Standalone means **no TypeScript, no JSX fragments shorthand issues, no modern
   syntax beyond what Babel preset supports** — keep code browser-compatible.
 - Netlify headers disable caching for html/js/jsx/css, so deploys take effect immediately.
